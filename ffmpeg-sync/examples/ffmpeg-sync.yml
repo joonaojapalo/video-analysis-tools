@@ -1,0 +1,13 @@
+cameras:
+  ve:
+    fps: 180
+  vt:
+    fps: 180
+  oe:
+    fps: 240
+  ot:
+    fps: 240
+excel:
+  column1: "Throw"
+  column2: "Camera"
+  frame_column: "Frame"
