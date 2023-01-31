@@ -15,8 +15,8 @@ def load(path):
     return sequence
 
 
-def quickload(video_id, idx=None, numpy=False):
-    path = os.path.join("pose-estimation", video_id, "alphapose-results.json")
+def quickload(subject_id, video_id, idx=None, numpy=False):
+    path = os.path.join("2023-01-18", "Subjects", subject_id, "Pose", video_id, "alphapose-results.json")
     sequence = load(path)
 
     if idx:

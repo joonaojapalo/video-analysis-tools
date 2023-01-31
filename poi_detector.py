@@ -59,7 +59,7 @@ def detect_poi(sequence, policy="horizontal"):
     stdx = np.std(np.abs(poi_metrics))
 
     if stdx < mx:
-        msg = ", ".join(str(x) for x in poi_metrics)
+        msg = ", ".join(f"{x} ({idx})" for x,idx in zip(poi_metrics, idx_lookup))
         sc.print_warn(f"Ambiguous person of interest detection: {msg}")
         print("  poi_metrics: mean=%.2f (std. %.2f)" % (mx, stdx))
 
@@ -88,6 +88,3 @@ if __name__ == "__main__":
         print("WARNING: multiple POI candidates found", pois)
 
     print(pois)
-
-# issues:
-#   - within pose joint detection fails

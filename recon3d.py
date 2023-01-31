@@ -17,8 +17,17 @@ from pose_tracker import harmonize_indices
 from poi_detector import detect_poi
 from sequence_tools import select_sequence_idx
 import fps_interpolate
-from keypoints import KEYPOINTS, KEYPOINTS_INV
+from keypoints import KEYPOINTS
+import kalmanfilt as kf
+from nanmedianfilt import nanmedianfilt
 
+DEFAULT_FPS = 50
+
+# regular expressions
+cam_file_re = re.compile("calibration_camera-([a-z]+).txt")
+dir_re = re.compile("([A-Za-z0-9]+)_([A-Za-z0-9]+)_([A-Za-z0-9]+)")
+
+# execution statistics
 stats = defaultdict(int)
 
 
@@ -37,9 +46,6 @@ def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
         marker = cols[marker_idx]
         output[marker] = [float(cols[i]) for i in col_idxs]
     return output
-
-
-cam_file_re = re.compile("calibration_camera-([a-z]+).txt")
 
 
 class AlphaposeCameraSet:
@@ -69,7 +75,8 @@ class DataSource:
 
         for subject_dir in glob.glob(subjects):
             subject_id = subject_dir.split(os.path.sep)[-1]
-            initdata[subject_id] = defaultdict(lambda:{"subject_dir": None, "cams": {}})
+            initdata[subject_id] = defaultdict(
+                lambda: {"subject_dir": None, "cams": {}})
 
             # sync_glob = os.path.join("Sync",
             #                        "%s_%s_*.mp4")
@@ -92,10 +99,9 @@ class DataSource:
 
         # build AlphaposeTrials
         for subject_id, trials in initdata.items():
-#            print("AP", subject_id, trials)
             for trial_id, data in trials.items():
-                ap = AlphaposeCameraSet(subject_id, trial_id, data["cams"], subject_dir=data["subject_dir"])
-                print(ap)
+                ap = AlphaposeCameraSet(
+                    subject_id, trial_id, data["cams"], subject_dir=data["subject_dir"])
                 self.alphapose_camera_sets.append(ap)
 
     def get_calibration_files(self, dir="Calibration"):
@@ -143,18 +149,20 @@ def load_calibration(path):
         raise Exception("No camera calibration files read: %s" % path)
 
     markers = calib_world.keys()
-    world_arr = [calib_world[x] for x in markers]
-    n_dims = len(world_arr[0])
-    assert n_dims == 3
 #    pprint.pprint(world_arr)
 
     cam_ids = []
     camera_calibration = {}
 
-    print("Camera calibration error:")
+    print("Camera calibration error values:")
     for cam_id, cam_values in calib_cams.items():
-        cam_arr = [cam_values[x] for x in markers]
+        use_markers = [x for x in markers if x in cam_values]
+        cam_arr = [cam_values[x] for x in use_markers]
         cam_ids.append(cam_id)
+
+        world_arr = [calib_world[x] for x in use_markers]
+        n_dims = len(world_arr[0])
+        assert n_dims == 3
 
         # dlt calibration
         L, err = dlt_calibrate(n_dims, world_arr, cam_arr)
@@ -170,23 +178,41 @@ def seq_as_array(poi_sequence):
     return np.array([f["keypoints"] if f else [np.NaN] * N for f in poi_sequence])
 
 
-def filter_data(poi_sequence, visibility_threshold=0.5):
-    # build keypoint array
-    keypoint_arr = seq_as_array(poi_sequence)
+def impute_filter():
+    pass
+
+
+def drop_low_scores(keypoint_arr, visibility_threshold):
     # keypoint score filter
     for i in range(2, 78, 3):
         idx_arr = keypoint_arr[:, i] < visibility_threshold
 #        print(f"  {KEYPOINTS_INV[(i-2)/3]} ({i}) dropped by low score: {np.sum(idx_arr)}")
         keypoint_arr[idx_arr, i-2:i] = np.NaN
-    # TODO: NaN aware median.
+    return keypoint_arr
+
+
+def filter_data(poi_sequence, fps, visibility_threshold=0.5):
+    # build keypoint array
+    keypoint_arr = seq_as_array(poi_sequence)
+    keypoint_arr = drop_low_scores(keypoint_arr, visibility_threshold)
+
     # TODO: kNN imputer (sklearn)
     # TODO: regression imputation... (GPR?)
     # median filter (each x,y column)
-    median_filter_window = 7
+
+    # init butterworth
+    b, a = scipy.signal.butter(4, 16, 'low', fs=fps)
+    median_filter_window = 15
     for k in range(2):
         for i in range(k, 78, 3):
-            keypoint_arr[:, i] = scipy.signal.medfilt(
-                keypoint_arr[:, i], [median_filter_window])
+            mf = nanmedianfilt(keypoint_arr[:, i], median_filter_window)
+#            mf[np.isnan(mf)] = 0
+            keypoint_arr[:, i] = mf#scipy.signal.filtfilt(b, a, mf)
+            # kf.kalmanfilt1d(keypoint_arr[:, i],
+            #                time_step=0.2,
+            #                mesurement_noise=2.0)
+            #scipy.signal.medfilt(keypoint_arr[:, i], [median_filter_window])
+
     return keypoint_arr
 
 
@@ -301,6 +327,54 @@ def read_ffmpeg_fps_config(sync_file_dir, cam_ids):
     return cam_fps
 
 
+def get_target_fps(cam_ids, sync_file_dir):
+    if not sync_file_dir:
+        return DEFAULT_FPS
+
+    # read ffmpeg config from file
+    cam_fps = read_ffmpeg_fps_config(sync_file_dir, cam_ids)
+    if cam_fps:
+        return max(cam_fps.values())
+    else:
+        print("No camera FPS configuration. Using default: %i..." %
+              DEFAULT_FPS)
+        return DEFAULT_FPS
+
+
+def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
+    target_fps = DEFAULT_FPS
+    if sync_file_dir:
+        # read ffmpeg config from file
+        cam_fps = read_ffmpeg_fps_config(sync_file_dir, cam_ids)
+        if cam_fps:
+            target_fps = max(cam_fps.values())
+        else:
+            print("No camera FPS configuration. Using default: %i..." %
+                  DEFAULT_FPS)
+    else:
+        cam_fps = {}
+
+    if verbose:
+        print(f"Interpolating to target fps: {target_fps}:")
+
+    for cam_id in cam_ids:
+        input_fps = cam_fps.get(cam_id, DEFAULT_FPS)
+
+        if input_fps == target_fps:
+            continue
+
+        interp = fps_interpolate.interpolate(
+            posedata[cam_id], input_fps, target_fps)
+        posedata[cam_id] = interp
+        if verbose:
+            print(f"  Interpolated '{cam_id}' {input_fps} -> {target_fps}")
+
+    if verbose:
+        print()
+
+    return posedata
+
+
 def compute_com(world_pos):
     """Compute CoM from 3D position coordinates using model by Dempster"""
     trunk_weight = 0.678
@@ -325,11 +399,12 @@ def compute_com(world_pos):
 
 
 usage = """
+  python recon3d.py ./2013-01-13
+
+  Define calibration directory:
   python recon3d.py -c ./2013-01-13/Calibration ./2013-01-13
 """
 
-dir_re = re.compile("([A-Za-z0-9]+)_([A-Za-z0-9]+)_([A-Za-z0-9]+)")
-DEFAULT_FPS = 50
 
 if __name__ == "__main__":
     import argparse
@@ -368,19 +443,9 @@ if __name__ == "__main__":
     if args.verbose:
         print("camera_calibration", camera_calibration)
 
-    # load data
-    glob_path = os.path.join(args.input_directory,
-                             "Subjects",
-                             args.subject,
-                             "Pose",
-                             "%s_%s_*" % (args.subject, args.trial),
-                             "alphapose-results.json")
-    alphapose_files = glob.glob(glob_path)
-
-    cam_ids = []
     posedata = {}
 
-    if not alphapose_files:
+    if not datasource.alphapose_camera_sets:
         sc.print_fail("No alphapose-results.json files found")
         sys.exit(1)
 
@@ -391,6 +456,7 @@ if __name__ == "__main__":
 
     for camset in datasource.alphapose_camera_sets:
         cam_ids = camset.get_cam_ids()
+        fps = get_target_fps(cam_ids, sync_file_dir)
 
         # load pose data
         print("Opening pose data files:")
@@ -398,6 +464,8 @@ if __name__ == "__main__":
             print(f"  File '{pose_path}'")
             print(f"    - camera: {cam_id}")
             sequence = load_alphapose_json(pose_path)
+
+            # pose tracking
             harmonize_indices(sequence)
 
             # find sequence for person-of-interest
@@ -410,7 +478,7 @@ if __name__ == "__main__":
 
             # select only data for person of interest
             poi_sequence = select_sequence_idx(sequence, poi)
-            keypoint_arr = filter_data(poi_sequence)
+            keypoint_arr = filter_data(poi_sequence, fps)
             posedata[cam_id] = keypoint_arr
             n_frames, n_cols = keypoint_arr.shape
             n_keypoints = n_cols // 3
@@ -423,35 +491,14 @@ if __name__ == "__main__":
             sys.exit(1)
 
         # do fps interpolation
-        if sync_file_dir:
-            # read ffmpeg config from file
-            cam_fps = read_ffmpeg_fps_config(sync_file_dir, cam_ids)
-            if cam_fps:
-                target_fps = max(cam_fps.values())
-            else:
-                print("No camera FPS configuration. Using default: %i..." % DEFAULT_FPS)
-                target_fps = 50
-
-        print(f"Interpolating to target fps: {target_fps}:")
-
-        for cam_id in cam_ids:
-            input_fps = cam_fps.get(cam_id, DEFAULT_FPS)
-
-            if input_fps == target_fps:
-                continue
-
-            interp = fps_interpolate.interpolate(
-                posedata[cam_id], input_fps, target_fps)
-            posedata[cam_id] = interp
-            print(f"  Interpolated '{cam_id}' {input_fps} -> {target_fps}")
-        print()
+        posedata = interpolate_cams(posedata, cam_ids, sync_file_dir)
 
         if not check_frame_count(posedata, cam_ids):
             sc.print_fail("Frame count check fail.")
             sys.exit(0)
 
         # make 3D recostructions
-        world_pos = reconstruct_3d(posedata, cam_ids, camera_calibration)
+        world_pos = reconstruct_3d(posedata, cam_ids, camera_calibration, fps)
 
         # write to disk
         output_dir = os.path.join(camset.subject_dir, "Output")

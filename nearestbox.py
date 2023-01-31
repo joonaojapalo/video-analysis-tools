@@ -28,13 +28,13 @@ def nbb(points, boxes):
 def intersect(boxes1, boxes2):
     """Compute distance of points to boxes.
 
-        Arguments
-
-            boxes1  : Array of yolo boxes [[x,y,h,w], ...]
-            boxes2  : Array of yolo boxes
+        Parameters;
+        boxes1  : Array of yolo boxes [[x,y,h,w], ...]
+        boxes2  : Array of yolo boxes
 
         Returns:
-            [[float]]   - intersection rations [0..1] from boxes1 (rows) to boxes2 (columns)
+        (np.array(float))   : intersection rations [0..1] from boxes1 (rows) to
+                              boxes2 (columns)
 
         Example:
 
@@ -44,6 +44,10 @@ def intersect(boxes1, boxes2):
     """
     xywh1 = np.asarray(boxes1)
     interection_ratios = np.zeros([len(boxes1), len(boxes2)])
+
+    if interection_ratios.size == 0:
+        return interection_ratios
+
     for i,box2 in enumerate(boxes2):
         x2,y2,w2,h2 = box2
         # intersection box widths & heights

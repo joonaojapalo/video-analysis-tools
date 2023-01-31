@@ -1,10 +1,10 @@
-# Processing toolchain
+# Video 3D reconstruction tools
 
-## Overview
+## Setup
 
-- ffmpeg-sync
-- run-alphapose
-- recond3d
+1. Clone this repository.
+2. Add `.\bin\` into PATH environment variable.
+
 
 ### Usage
 
@@ -15,7 +15,9 @@ ffmpeg-sync Subjects\
 # run pose estimation
 run-alphapose Subjects\**\Sync\*.mp4
 
-python .\recon3d.py .\pipeline\data\hippos-01\ -o S1_01-pos
+# reconstruct all subjects & throws, also compute CoM
+recon3d --com .\2023-01-13\
 
-python .\viz3d.py .\S1_01-pos.npy --save
+# visualize recostruction into video file (--save)
+viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
 ```

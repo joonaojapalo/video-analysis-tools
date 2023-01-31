@@ -6,6 +6,9 @@ import argparse
 import time
 from pathlib import Path
 
+import shellcolors as sc
+from csc_alphapose.ssh import ssh_command, ssh_prepare_alpohapose_jobs, Connection
+
 ALPHAPOSE_PATH = os.environ.get("ALPHAPOSE_PATH")
 
 perf_times = []
@@ -13,13 +16,71 @@ perf_times = []
 parser = argparse.ArgumentParser(
     prog='File feeder to AlphaPose',
     description='Inputs multiple files to AlphaPose')
-parser.add_argument('input_files')
+parser.add_argument('input')
+parser.add_argument("--local", action="store_true", default=False,
+                    help="Use local installation")
 parser.add_argument('-r', '--reldir',
                     default=os.path.join("..", "Pose"),
-                    help="Output directory relative to input file.")
+                    help="Output directory relative to input file. (local usage only)")
+parser.add_argument('-d', '--dryrun',
+                    action="store_true",
+                    help="Dry run. No actual data transfers.")
+
+class RemoteMapping:
+    def __init__(self, connection, jobid=None):
+        self.connection = connection
+        if jobid:
+            self.jobid = jobid
+        else:
+            self.jobid = self._generate_local_job_id(
+                self.connection.local_basepath)
+
+    def _generate_local_job_id(self, local_basepath):
+        return f"{local_basepath.name}_02"
+
+    def get_jobdir(self):
+        return self.connection.get_job_dir(self.jobid)
+
+    def get_jobdir_input(self):
+        return self.connection.get_jobdir(self.jobid, "input")
+
+    def get_jobdir_output(self):
+        return self.connection.get_jobdir(self.jobid, "output")
 
 
-def run_alphapose(input_video, outdir):
+def transfer_input_to_csc(connection, remote, dry_run=False):
+    jobdir_input = remote.get_jobdir_input()
+
+    # create directory
+    ssh_command(connection, f"mkdir -p {jobdir_input}")
+    print(f"Cretated job input directory: {jobdir_input}")
+
+    # transfer command
+    rsync_cmd = [
+        "rsync",
+        "-av", "--progress",
+        "--include='/Subjects'",
+        "--include='Sync/*.mp4'",
+        "--include='*/'",
+        "--exclude='*'",
+        "--prune-empty-dirs",
+        ".",
+        f"{connection.user}@{connection.host}:{jobdir_input}"
+    ]
+
+    if dry_run:
+        rsync_cmd.append("--list-only")
+
+    cwd = str(connection.local_basepath)
+    subprocess.run(rsync_cmd, cwd=cwd, check=True)
+
+
+def run_alphapose_local(input_video, outdir):
+    if not ALPHAPOSE_PATH:
+        sc.print_fail(
+            " ** ALPHAPOSE_PATH env is unset (set to AlphaPose installation base directory")
+        sys.exit(1)
+
     print("ALPAPOSE_PATH path: %s" % ALPHAPOSE_PATH)
     ap_config_path = os.path.join("configs", "halpe_26",
                                   "resnet", "256x192_res50_lr1e-3_1x.yaml")
@@ -44,7 +105,7 @@ def run_alphapose(input_video, outdir):
 
 
 def split_filename(fn):
-    parts = os.path.basename(input_file).split(os.path.extsep)
+    parts = os.path.basename(fn).split(os.path.extsep)
     return os.path.extsep.join(parts[0:-1]), parts[-1] if len(parts) > 1 else None
 
 
@@ -52,33 +113,55 @@ def get_basedir(fn):
     return os.path.sep.join(fn.split(os.path.sep)[:-1])
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
-
-    if not ALPHAPOSE_PATH:
-        print(
-            " ** ALPHAPOSE_PATH env is unset (set to AlphaPose installation base directory")
-        sys.exit(1)
-
-    print("Pose estimation:")
-    for input_file in glob.glob(args.input_files):
+def run_local(args):
+    sc.print_bold("Pose estimation:")
+    for input_file in glob.glob(args.input):
         input_basename, ext = split_filename(input_file)
         input_basedir = get_basedir(input_file)
 
         if ext != 'mp4':
-            print("WARNING: Not a mp4 file: %s" % input_file)
+            sc.print_warn("WARNING: Not a mp4 file: %s" % input_file)
 
         # output to sibling directory "Pose"
         sibling_dir = os.path.join(input_basedir, args.reldir, input_basename)
         outdir = os.path.realpath(sibling_dir)
-        print(outdir)
-        sys.exit(0)
 
         Path(outdir).mkdir(parents=True, exist_ok=True)
         print(f"  {input_file} --> {outdir}")
 
         # run alphapose
-        run_alphapose(input_file, outdir)
+        run_alphapose_local(input_file, outdir)
+
+
+def run_csc(args):
+    remote_basedir = "/scratch/project_2006605/alphapose-jobs/"
+
+    conn = Connection("ojapjoil", "mahti.csc.fi", args.input, remote_basedir)
+    remote = RemoteMapping(conn)  # TODO: read jobid
+
+    print("Local JOBID:", remote.jobid)
+
+    try:
+        sc.print_bold("Transfering input videos.")
+        transfer_input_to_csc(conn, remote, dry_run=args.dryrun)
+
+    except subprocess.CalledProcessError as e:
+        sc.print_fail("File trasnsfer failure: %s" % e)
+        return
+
+    # run remote job prepare script
+    ssh_prepare_alpohapose_jobs(conn, remote.jobid)
+
+    # start sbatch
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+
+    if args.local:
+        run_local(args)
+    else:
+        run_csc(args)
 
     print()
     print("Processing times", perf_times)

@@ -1,0 +1,19 @@
+#!/bin/bash -l
+#SBATCH --job-name alphapose_array
+#SBATCH --output log_job/alphapose_batch_array_job_out_%A_%a.txt
+#SBATCH --error log_error/alphapose_batch_array_job_err_%A_%a.txt
+#SBATCH --account=project_2006605
+#SBATCH --partition gpusmall
+#SBATCH --ntasks 1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00
+#SBATCH --gres=gpu:a100:2
+#SBATCH --array=1-58
+
+module load cuda/11.5.0
+# set the input file to process, run analysis in ten batches of 114 arrays
+for i in {1..3}; do
+	name=$(sed -n $(( (SLURM_ARRAY_TASK_ID-1) * 3 + i))p {{JYU_JOBFILE}}) # run the analysis
+	test -n "$name" && eval ${name}
+done

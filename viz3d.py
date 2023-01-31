@@ -70,10 +70,6 @@ def animate(frame_counter, n_frames, frame_start, fps):
     ax.set_aspect('equal')
 
 
-def progress(n, max):
-    print(".", end="")
-
-
 usage = """
   python viz3d.py .\S1_01-pos.npy --save
 """
@@ -85,6 +81,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output",
                         default=None,
                         help="File name for output video.")
+    parser.add_argument("-f", "--frame",
+                        default=None,
+                        help="Frame to inspect.")
     args = parser.parse_args()
 
     if args.output:
@@ -97,20 +96,27 @@ if __name__ == "__main__":
     fig = plt.figure()
     ax = plt.axes(projection='3d')
 
-    fps = 120
-
-    n_video_frames = (len(posearr) - frame_start) * fps // 240
-    ani = FuncAnimation(fig, animate,
-                        frames=n_video_frames,
-                        fargs=(n_video_frames, frame_start, fps),
-                        interval=4*1000/120.,
-                        repeat=True)
-
-    if args.output:
-        print("Processing video...")
-        ani.save(args.output)
-        print()
-        print(f"Wrote {n_video_frames} frames to file: {args.output}")
-        print()
-    else:
+    if args.frame:
+        frame = int(args.frame)
+        plot_skeleton(posearr[frame])
+        plot_head(posearr[frame])
+        ax.set_aspect('equal')
         plt.show()
+    else:
+        # animate full video
+        fps = 120
+        n_video_frames = (len(posearr) - frame_start) * fps // 240
+        ani = FuncAnimation(fig, animate,
+                            frames=n_video_frames,
+                            fargs=(n_video_frames, frame_start, fps),
+                            interval=4*1000/fps,
+                            repeat=True)
+
+        if args.output:
+            print("Processing video...")
+            ani.save(args.output)
+            print()
+            print(f"Wrote {n_video_frames} frames to file: {args.output}")
+            print()
+        else:
+            plt.show()

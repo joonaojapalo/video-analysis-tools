@@ -170,16 +170,19 @@ if __name__ == "__main__":
             if os.path.isfile(input_path):
                 capture_fps = int(
                     conf["cameras"][camera_id]["fps"]) if conf else 50
+
+                # parse input video fps 
                 playback_fps = parse_fps(input_path)
 
                 print("  File '%s' (capture_fps=%i, playback_fps=%.2f)" %
                       (input_path, capture_fps, playback_fps))
+                duration = 2
                 ts = 1000 * frame / playback_fps
-                tot_frames = (1000 * 2 * capture_fps) / playback_fps
+                tot_time = (1000 * duration * capture_fps) / playback_fps
                 cmd = ffmpeg_command_ts(input_path,
                                         output_path,
                                         ts,
-                                        ts + tot_frames)
+                                        ts + tot_time)
 
                 cmds.append(cmd)
 
