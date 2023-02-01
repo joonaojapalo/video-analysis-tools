@@ -55,7 +55,8 @@ def ffmpeg_command_ts(inputfile, outputfile, ts0, ts1):
 
 
 def glob_index_files(basepath):
-    glob_paths = glob.glob(os.path.join(basepath, "**", "*_indices.xlsx"))
+    index_file_pattern = os.path.join(basepath, "**", "*_indices.xlsx")
+    glob_paths = glob.glob(index_file_pattern, recursive=True)
 
     if glob_paths:
         print("\nValidating index files:")
@@ -128,16 +129,19 @@ def input_boolean_prompt(prompt_str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("ffmpeg-sync")
     parser.add_argument("input_dir")
-    parser.add_argument("-c", "--config", default=".",)
-    parser.add_argument("-o", "--output", default="output",
+    parser.add_argument("-c", "--config", default=None)
+    parser.add_argument("-o", "--output", default=None,
                         help="Absolute output directory")
     parser.add_argument("-S", "--syncdir", default="Sync",
                         help="Output directory name relative to indices.xlsx")
     args = parser.parse_args()
 
-    conf = config.read_conf(args.config)
+    # read ffmpeg-conf.yml
+    config_path = args.config if args.config else args.input_dir
+    conf = config.read_conf(config_path)
+
     if conf:
-        cfg_file = config.get_config_path(args.config)
+        cfg_file = config.get_config_path(config_path)
         print("Using config: %s" % os.path.realpath(cfg_file))
 
     # read excel configuration
@@ -159,15 +163,24 @@ if __name__ == "__main__":
             print("\nNo data found from file:", indexfile_path)
 
         for [trial_id, camera_id, frame] in data:
-            path_parts = indexfile_path.split(os.path.sep)[:-1]
-            subject_dir = path_parts[-1]
-            base_dir = os.path.sep.join(path_parts)
+            indexfile_path = Path(indexfile_path)
+            base_dir = indexfile_path.parent#os.path.sep.join(path_parts)
+            path_parts = base_dir.parts#            .split(os.path.sep)[:-1]
+            subject_dir = base_dir.name # path_parts[-1]
             fn_template = "%s_%s_%s" % (subject_dir, trial_id, camera_id)
-            input_path = os.path.join(base_dir, "%s.mp4" % (fn_template))
-            output_path = os.path.join(
-                indexfile_path, args.output, "%s-sync.mp4" % (fn_template))
+            input_fname = "%s.mp4" % (fn_template)
+            output_fname = "%s-sync.mp4" % (fn_template)
+            input_path = base_dir.joinpath(input_fname)
 
-            if os.path.isfile(input_path):
+            if args.output:
+                # absolute output
+                output_path = os.path.join(args.output, output_fname)
+            else:
+                # relative output
+                output_path = base_dir.joinpath(args.syncdir).mkdir(parents=True, exist_ok=True)
+                output_path = base_dir.joinpath(args.syncdir, output_fname)
+
+            if input_path.is_file():
                 capture_fps = int(
                     conf["cameras"][camera_id]["fps"]) if conf else 50
 
@@ -179,8 +192,8 @@ if __name__ == "__main__":
                 duration = 2
                 ts = 1000 * frame / playback_fps
                 tot_time = (1000 * duration * capture_fps) / playback_fps
-                cmd = ffmpeg_command_ts(input_path,
-                                        output_path,
+                cmd = ffmpeg_command_ts(str(input_path),
+                                        str(output_path),
                                         ts,
                                         ts + tot_time)
 
@@ -200,8 +213,9 @@ if __name__ == "__main__":
 
     print("\nStart executing commands...\n")
 
-    # ensure output dir
-    Path(args.output).mkdir(parents=True, exist_ok=True)
+    # ensure absolute output dir
+    if args.output:
+        Path(args.output).mkdir(parents=True, exist_ok=True)
 
     errors = []
     for cmd in cmds:
