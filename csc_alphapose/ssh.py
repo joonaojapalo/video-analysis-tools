@@ -1,7 +1,7 @@
 import subprocess
 import os
 from pathlib import Path
-
+import re
 
 class Connection:
     def __init__(self, user, host, local_basedir, remote_basedir):
@@ -18,7 +18,7 @@ class Connection:
                             local_jobid, subdir).replace(os.path.sep, "/")
 
 
-def ssh_command(connection, command):
+def run_command(connection, command):
     cmd = [
         "ssh",
         f"{connection.user}@{connection.host}",
@@ -31,21 +31,26 @@ def ssh_command(connection, command):
 SUCCESS_MESSAGE_JOBFILE = b"ALPHAPOSE JOB FILE CREATION: OK"
 
 
-def ssh_prepare_alpohapose_jobs(connection, jobid):
+def prepare_alphapose_jobs(connection, jobid):
     prepare_cmd = [
         f"cd {connection.remote_basedir};"
-        f"python3 prepare_alphapose_jobs.py -J {jobid} -o {jobid}/output -f {jobid}/alphapose-jobs.txt {jobid}/input/"
+        f"python3 prepare_alphapose_jobs.py -J {jobid} {jobid}/input/"
     ]
 
     cmd = " ".join(prepare_cmd)
     print("Running remote command:", cmd)
-    output = ssh_command(connection, cmd)
+    output = run_command(connection, cmd)
 
     if output.find(SUCCESS_MESSAGE_JOBFILE) < 0:
         raise Exception("Alphapose job file prepare failed.")
 
 
-def ssh_sbatch(connection, jobid):
+def sbatch(connection, jobid):
+    """Submit Slurm job´b.
+
+    Returns:
+    int: remote job id
+    """
     prepare_cmd = [
         f"cd {connection.remote_basedir};"
         f"sbatch {jobid}/alphapose-job.sh"
@@ -53,7 +58,18 @@ def ssh_sbatch(connection, jobid):
 
     cmd = " ".join(prepare_cmd)
     print("Running remote command:", cmd)
-    output = ssh_command(connection, cmd)
+    output = run_command(connection, cmd)
+    match = re.search(b"Submitted batch job (\d+)", output)
 
-    if output.find(SUCCESS_MESSAGE_JOBFILE) < 0:
-        raise Exception("Alphapose job file prepare failed.")
+    if not match:
+        raise Exception("Failed to submit a job.")
+    
+    return int(match.groups()[0])
+
+
+def sacct(connection):
+    raise NotImplementedError("sacct")
+
+
+def scancel(connection):
+    raise NotImplementedError("scancel")

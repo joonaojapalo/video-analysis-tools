@@ -1,4 +1,4 @@
-#/bin/env python3
+# /bin/env python3
 """
 Script to run mp4:s through Yolo7 StrogSORT pipeline
 Written by Timo Rantalainen 2022 tjrantal at gmail.command
@@ -25,19 +25,16 @@ def transform_sync_to_pose(input_path):
     return Path(*replaced_parts)
 
 
-def get_alphapose_commands(input_basedir, output_basedir, alphapose_dir, path_transformers=[]):
+def get_alphapose_commands(input_basepath, output_basepath, alphapose_path, path_transformers=[]):
     patterns = [
         "*.mp4",
         "*.avi",
     ]
 
-    input_basepath = Path(input_basedir)
-    output_basepath = Path(output_basedir)
-    alphapose_path = Path(alphapose_dir).absolute()
-
     commands = []
     for pattern in patterns:
         for path in input_basepath.rglob(pattern):
+            print(path)
             cmd = build_alphapose_command(
                 Path(path),
                 output_basepath,
@@ -63,18 +60,18 @@ def build_alphapose_command(path, output_basepath, input_basepath, alphapose_pat
     target_file = out_path.joinpath("alphapose-results.json")
 
     # alphapose
-    alphapose_prog = alphapose_path.joinpath("scripts", "demo_inference.py")
-    alphapose_config = alphapose_path.joinpath("configs", "halpe_26", "resnet",
-                                                "256x192_res50_lr1e-3_1x.yaml")
-    alphapose_model = alphapose_path.joinpath("pretrained_models",
-                                               "halpe26_fast_res50_256x192.pth")
+    alphapose_prog = alphapose_path.absolute().joinpath("scripts", "demo_inference.py")
+    alphapose_config = alphapose_path.absolute().joinpath("configs", "halpe_26", "resnet",
+                                                          "256x192_res50_lr1e-3_1x.yaml")
+    alphapose_model = alphapose_path.absolute().joinpath("pretrained_models",
+                                                         "halpe26_fast_res50_256x192.pth")
 
     if not os.path.isfile(target_file):
         cmd = [
             "python3", str(alphapose_prog),
             "--cfg", str(alphapose_config),
             "--checkpoint", str(alphapose_model),
-            "--gpus", "2",
+            "--gpus", "0,1",
             "--pose_track",
             "--video", str(path.absolute()),
             "--outdir", str(out_path.absolute())
@@ -91,35 +88,56 @@ usage = """
 parser = argparse.ArgumentParser(description="Job file generator.")
 parser.add_argument("input_dir")
 parser.add_argument("-o", "--outdir",
-                    required=True,
+                    default="output",
                     help="Output root directory. eg. '/scratch/project_2006605/b2r_pilot/alphapose/hienoo/'")
 parser.add_argument("-f", "--outputfile",
                     default="alphapose-jobs.txt",
                     help="Output file name.")
 parser.add_argument("-J", "--jobid",
-                    default="default",
+                    required=True,
                     help="Job local id (eg. 2023-02-16_001).")
+parser.add_argument("-D", "--jobdir",
+                    default=".",
+                    help="Job sandbox directory")
+
+def get_alphapose_path():
+    DEFAULT = "/projappl/project_2006605/AlphaPose/"
+    apdir = os.environ.get("ALPHAPOSE_PATH", DEFAULT)
+    return Path(apdir)
 
 if __name__ == "__main__":
     # parse command line args
     args = parser.parse_args()
 
+    sandbox = Path(args.jobdir, args.jobid)
+    input_path = Path(args.input_dir)
+
+    if not sandbox.is_dir():
+        raise Exception("Invalid job directory: %s" % str(sandbox))
+
+    if not input_path.is_dir():
+        raise Exception("Invalid video input directory: %s" % str(input_path))
+
+    print("Reading input from", input_path)
+    alphapose_path = get_alphapose_path()
+    output_path = sandbox.joinpath(args.outdir)
+
     # Process input directory tree
-    alphapose_dir = "/projappl/project_2006605/AlphaPose/"
-    indir = args.input_dir
-    outdir = args.outdir
-    commands = get_alphapose_commands(indir, outdir, alphapose_dir,
+    commands = get_alphapose_commands(input_path, output_path, alphapose_path,
                                       path_transformers=[transform_sync_to_pose])
 
     # This is where the commands get saved to
-    with open(args.outputfile, "w") as commandFile:
+    outputfile = sandbox.joinpath(args.outputfile)
+    with open(outputfile, "w") as commandFile:
         commandFile.writelines(commands)
 
+    # create batch file from template
     with open("alphapose-job.sh.template") as template_fd:
-        with open(os.path.join(args.jobid, "alphapose-job.sh"), "w") as output_fd:
+        with open(sandbox.joinpath("alphapose-job.sh"), "w") as output_fd:
             for line in template_fd:
-                output_fd.write(line.replace("{{JYU_JOBFILE}}", args.outfile))
+                output_fd.write(line.replace(
+                    "{{JYU_JOBFILE}}", str(outputfile)))
 
-    num_lines = sum(1 for line in open(args.outputfile))
-    print(f"Number of command written: {num_lines}\n")
+    num_lines = sum(1 for line in open(outputfile))
+    print(f"{num_lines} commands written to {outputfile}")
     print("ALPHAPOSE JOB FILE CREATION: OK")

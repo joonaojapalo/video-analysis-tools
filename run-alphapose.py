@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import shellcolors as sc
-from csc_alphapose.ssh import ssh_command, ssh_prepare_alpohapose_jobs, Connection
+import csc_alphapose.ssh as ssh
 
 ALPHAPOSE_PATH = os.environ.get("ALPHAPOSE_PATH")
 
@@ -25,6 +25,9 @@ parser.add_argument('-r', '--reldir',
 parser.add_argument('-d', '--dryrun',
                     action="store_true",
                     help="Dry run. No actual data transfers.")
+parser.add_argument('--cancel', type=int,
+                    help="Cancel sbatch job. eg. --cancel=112233")
+
 
 class RemoteMapping:
     def __init__(self, connection, jobid=None):
@@ -52,8 +55,8 @@ def transfer_input_to_csc(connection, remote, dry_run=False):
     jobdir_input = remote.get_jobdir_input()
 
     # create directory
-    ssh_command(connection, f"mkdir -p {jobdir_input}")
-    print(f"Cretated job input directory: {jobdir_input}")
+    ssh.run_command(connection, f"mkdir -p {jobdir_input}")
+    sc.print_ok(f"Created remote job input directory: {jobdir_input}")
 
     # transfer command
     rsync_cmd = [
@@ -136,23 +139,28 @@ def run_local(args):
 def run_csc(args):
     remote_basedir = "/scratch/project_2006605/alphapose-jobs/"
 
-    conn = Connection("ojapjoil", "mahti.csc.fi", args.input, remote_basedir)
-    remote = RemoteMapping(conn)  # TODO: read jobid
+    conn = ssh.Connection("ojapjoil", "mahti.csc.fi",
+                          args.input, remote_basedir)
+    remote = RemoteMapping(conn, "2023-01-30_01")  # TODO: read jobid
 
     print("Local JOBID:", remote.jobid)
 
     try:
         sc.print_bold("Transfering input videos.")
         transfer_input_to_csc(conn, remote, dry_run=args.dryrun)
+        sc.print_ok("Succesfully transferred input files.")
 
     except subprocess.CalledProcessError as e:
         sc.print_fail("File trasnsfer failure: %s" % e)
-        return
+        sys.exit(1)
 
     # run remote job prepare script
-    ssh_prepare_alpohapose_jobs(conn, remote.jobid)
+    ssh.prepare_alphapose_jobs(conn, remote.jobid)
+    sc.print_ok("Succesfully prepared sbatch job.")
 
     # start sbatch
+    sjobid = ssh.sbatch(conn, remote.jobid)
+    sc.print_ok("Succesfully queued sbatch job: %s" % sjobid)
 
 
 if __name__ == "__main__":
@@ -160,8 +168,7 @@ if __name__ == "__main__":
 
     if args.local:
         run_local(args)
+        print()
+        print("Processing times", perf_times)
     else:
         run_csc(args)
-
-    print()
-    print("Processing times", perf_times)
