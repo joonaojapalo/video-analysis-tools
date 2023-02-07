@@ -5,6 +5,7 @@ import yaml
 
 FILENAME = "ffmpeg-sync.yml"
 
+
 def get_config_path(path):
     if os.path.isdir(path):
         return os.path.join(path, FILENAME)
@@ -21,7 +22,7 @@ def read_conf(path="."):
         shellcolors.print_warn("Config file doesn't exist: %s" % fn)
 
 
-def read_xlsx_cols(conf, default_cols=["Throw", "Camera", "Frame"]):
+def read_xlsx_cols(conf, default_cols=["Throw", "Camera", "SyncFrame", "Duration", "ForcePlateDelay"]):
     xlsx_cols = default_cols
 
     # default confs
@@ -30,7 +31,7 @@ def read_xlsx_cols(conf, default_cols=["Throw", "Camera", "Frame"]):
 
     # excel columns from config
     excel_conf = conf.get("excel", {})
-    for i, xlsx_col in enumerate(["column1", "column2", "farme_column"]):
+    for i, xlsx_col in enumerate(["column1", "column2", "syncFrameColumn", "durationColumn", "delayColumn"]):
         col_name = excel_conf.get(xlsx_col)
         if col_name:
             xlsx_cols[i] = col_name

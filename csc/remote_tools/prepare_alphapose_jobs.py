@@ -42,7 +42,8 @@ def get_alphapose_commands(input_basepath, output_basepath, alphapose_path, path
                 alphapose_path,
                 path_transformers=path_transformers
             )
-            commands.append(cmd)
+            if cmd:
+                commands.append(cmd)
 
     return commands
 
@@ -60,7 +61,7 @@ def build_alphapose_command(path, output_basepath, input_basepath, alphapose_pat
     target_file = out_path.joinpath("alphapose-results.json")
 
     # alphapose
-    alphapose_prog = alphapose_path.absolute().joinpath("scripts", "demo_inference.py")
+    alphapose_prog = os.path.join("scripts", "demo_inference.py")
     alphapose_config = alphapose_path.absolute().joinpath("configs", "halpe_26", "resnet",
                                                           "256x192_res50_lr1e-3_1x.yaml")
     alphapose_model = alphapose_path.absolute().joinpath("pretrained_models",
@@ -68,13 +69,17 @@ def build_alphapose_command(path, output_basepath, input_basepath, alphapose_pat
 
     if not os.path.isfile(target_file):
         cmd = [
+            "(",
+            f"cd {alphapose_path.absolute()};",
+            "pwd;"
             "python3", str(alphapose_prog),
             "--cfg", str(alphapose_config),
             "--checkpoint", str(alphapose_model),
-            "--gpus", "0,1",
+            "--gpus", "0",
             "--pose_track",
             "--video", str(path.absolute()),
-            "--outdir", str(out_path.absolute())
+            "--outdir", str(out_path.absolute()),
+            ")"
         ]
         # Create the output folder structure beforehand here
         os.makedirs(out_path, exist_ok=True)
@@ -100,10 +105,12 @@ parser.add_argument("-D", "--jobdir",
                     default=".",
                     help="Job sandbox directory")
 
+
 def get_alphapose_path():
     DEFAULT = "/projappl/project_2006605/AlphaPose/"
     apdir = os.environ.get("ALPHAPOSE_PATH", DEFAULT)
     return Path(apdir)
+  
 
 if __name__ == "__main__":
     # parse command line args
@@ -132,11 +139,18 @@ if __name__ == "__main__":
         commandFile.writelines(commands)
 
     # create batch file from template
+    NUM_ARRAY_ITEMS = 32
+    n_commands = len(commands)
+
     with open("alphapose-job.sh.template") as template_fd:
         with open(sandbox.joinpath("alphapose-job.sh"), "w") as output_fd:
+            n_arr_items = min(n_commands, NUM_ARRAY_ITEMS)
+            jobs_per_item = n_commands // n_arr_items
             for line in template_fd:
-                output_fd.write(line.replace(
-                    "{{JYU_JOBFILE}}", str(outputfile)))
+                line= line.replace("{{JOBFILE}}", args.outputfile)
+                line = line.replace("{{ARRAY_ITEMS}}", str(n_arr_items))
+                line = line.replace("{{JOBS_PER_ITEM}}", str(jobs_per_item))
+                output_fd.write(line)
 
     num_lines = sum(1 for line in open(outputfile))
     print(f"{num_lines} commands written to {outputfile}")

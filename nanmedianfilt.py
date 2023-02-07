@@ -12,4 +12,5 @@ def nanmedianfilt(x, window):
         a = max(i - half_win, 0)
         b = min(i + half_win, n)
         output[i] = np.nanmedian(x[a:b])
+
     return output

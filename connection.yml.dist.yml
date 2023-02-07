@@ -1,0 +1,5 @@
+connection:
+    username: "ojapjoil"
+    host: "mahti.csc.fi"
+    remote_dir: "/scratch/project_2006605/alphapose-jobs/"
+  

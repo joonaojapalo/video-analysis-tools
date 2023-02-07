@@ -17,7 +17,7 @@ KEYPOINTS = {
     "LHip": 11,
     "RHip": 12,
     "LKnee": 13,
-    "Rknee": 14,
+    "RKnee": 14,
     "LAnkle": 15,
     "RAnkle": 16,
     "Head": 17,

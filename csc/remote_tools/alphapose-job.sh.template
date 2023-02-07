@@ -8,12 +8,13 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=32G
 #SBATCH --time=02:00:00
-#SBATCH --gres=gpu:a100:2
-#SBATCH --array=1-58
+#SBATCH --gres=gpu:a100:1
+#SBATCH --array=1-{{ARRAY_ITEMS}}
 
 module load cuda/11.5.0
 # set the input file to process, run analysis in ten batches of 114 arrays
-for i in {1..3}; do
-	name=$(sed -n $(( (SLURM_ARRAY_TASK_ID-1) * 3 + i))p {{JYU_JOBFILE}}) # run the analysis
+
+for i in {1..{{JOBS_PER_ITEM}}}; do
+	name=$(sed -n $(( (SLURM_ARRAY_TASK_ID-1) * {{JOBS_PER_ITEM}} + i))p {{JOBFILE}}) # run the analysis
 	test -n "$name" && eval ${name}
 done

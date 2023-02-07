@@ -128,12 +128,13 @@ def input_boolean_prompt(prompt_str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("ffmpeg-sync")
-    parser.add_argument("input_dir")
-    parser.add_argument("-c", "--config", default=None)
+    parser.add_argument("input_dir", metavar="INPUT_DIR")
+    parser.add_argument("-c", "--config", default=None,
+        help=f"Path to ffmpeg-sync.yml config file. Default: INPUT_DIR{os.path.sep}ffmpeg-sync.yml")
     parser.add_argument("-o", "--output", default=None,
-                        help="Absolute output directory")
+                        help="Absolute output directory.")
     parser.add_argument("-S", "--syncdir", default="Sync",
-                        help="Output directory name relative to indices.xlsx")
+                        help="Output directory name relative to indices.xlsx (default: Sync)")
     args = parser.parse_args()
 
     # read ffmpeg-conf.yml
@@ -162,7 +163,7 @@ if __name__ == "__main__":
         else:
             print("\nNo data found from file:", indexfile_path)
 
-        for [trial_id, camera_id, frame] in data:
+        for [trial_id, camera_id, frame, duration, forceplate_delay] in data:
             indexfile_path = Path(indexfile_path)
             base_dir = indexfile_path.parent#os.path.sep.join(path_parts)
             path_parts = base_dir.parts#            .split(os.path.sep)[:-1]
@@ -189,8 +190,8 @@ if __name__ == "__main__":
 
                 print("  File '%s' (capture_fps=%i, playback_fps=%.2f)" %
                       (input_path, capture_fps, playback_fps))
-                duration = 2
-                ts = 1000 * frame / playback_fps
+#                duration = 2
+                ts = 1000 * frame / playback_fps + forceplate_delay
                 tot_time = (1000 * duration * capture_fps) / playback_fps
                 cmd = ffmpeg_command_ts(str(input_path),
                                         str(output_path),

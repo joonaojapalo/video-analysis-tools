@@ -5,77 +5,15 @@ import sys
 import argparse
 import time
 from pathlib import Path
+import json
 
 import shellcolors as sc
-import csc_alphapose.ssh as ssh
+import csc.ssh
+import csc.rsync
 
 ALPHAPOSE_PATH = os.environ.get("ALPHAPOSE_PATH")
 
 perf_times = []
-
-parser = argparse.ArgumentParser(
-    prog='File feeder to AlphaPose',
-    description='Inputs multiple files to AlphaPose')
-parser.add_argument('input')
-parser.add_argument("--local", action="store_true", default=False,
-                    help="Use local installation")
-parser.add_argument('-r', '--reldir',
-                    default=os.path.join("..", "Pose"),
-                    help="Output directory relative to input file. (local usage only)")
-parser.add_argument('-d', '--dryrun',
-                    action="store_true",
-                    help="Dry run. No actual data transfers.")
-parser.add_argument('--cancel', type=int,
-                    help="Cancel sbatch job. eg. --cancel=112233")
-
-
-class RemoteMapping:
-    def __init__(self, connection, jobid=None):
-        self.connection = connection
-        if jobid:
-            self.jobid = jobid
-        else:
-            self.jobid = self._generate_local_job_id(
-                self.connection.local_basepath)
-
-    def _generate_local_job_id(self, local_basepath):
-        return f"{local_basepath.name}_02"
-
-    def get_jobdir(self):
-        return self.connection.get_job_dir(self.jobid)
-
-    def get_jobdir_input(self):
-        return self.connection.get_jobdir(self.jobid, "input")
-
-    def get_jobdir_output(self):
-        return self.connection.get_jobdir(self.jobid, "output")
-
-
-def transfer_input_to_csc(connection, remote, dry_run=False):
-    jobdir_input = remote.get_jobdir_input()
-
-    # create directory
-    ssh.run_command(connection, f"mkdir -p {jobdir_input}")
-    sc.print_ok(f"Created remote job input directory: {jobdir_input}")
-
-    # transfer command
-    rsync_cmd = [
-        "rsync",
-        "-av", "--progress",
-        "--include='/Subjects'",
-        "--include='Sync/*.mp4'",
-        "--include='*/'",
-        "--exclude='*'",
-        "--prune-empty-dirs",
-        ".",
-        f"{connection.user}@{connection.host}:{jobdir_input}"
-    ]
-
-    if dry_run:
-        rsync_cmd.append("--list-only")
-
-    cwd = str(connection.local_basepath)
-    subprocess.run(rsync_cmd, cwd=cwd, check=True)
 
 
 def run_alphapose_local(input_video, outdir):
@@ -136,34 +74,67 @@ def run_local(args):
         run_alphapose_local(input_file, outdir)
 
 
+def write_job_status(inputdir, local_jobid, sbatch_jobid):
+    # write sbatch jobid & local jobid to
+    data = {
+        "local_jobid": local_jobid,
+        "sbatch_jobid": sbatch_jobid
+    }
+
+    status_fn = f"job-{local_jobid}.json"
+    status_path = os.path.join(inputdir, status_fn)
+    with open(status_path, "w") as fd:
+        json.dump(data, fd, indent=2)
+    return status_path
+
+
 def run_csc(args):
     remote_basedir = "/scratch/project_2006605/alphapose-jobs/"
 
-    conn = ssh.Connection("ojapjoil", "mahti.csc.fi",
+    conn = csc.ssh.Connection("ojapjoil", "mahti.csc.fi",
                           args.input, remote_basedir)
-    remote = RemoteMapping(conn, "2023-01-30_01")  # TODO: read jobid
+    remote = csc.rsync.RemoteMapping(conn)
 
     print("Local JOBID:", remote.jobid)
 
     try:
         sc.print_bold("Transfering input videos.")
-        transfer_input_to_csc(conn, remote, dry_run=args.dryrun)
+        csc.rsync.upload(conn, remote, dry_run=args.dryrun)
         sc.print_ok("Succesfully transferred input files.")
 
     except subprocess.CalledProcessError as e:
-        sc.print_fail("File trasnsfer failure: %s" % e)
+        sc.print_fail("File transfer failure: %s" % e)
         sys.exit(1)
 
     # run remote job prepare script
-    ssh.prepare_alphapose_jobs(conn, remote.jobid)
+    csc.ssh.prepare_alphapose_jobs(conn, remote.jobid)
     sc.print_ok("Succesfully prepared sbatch job.")
 
     # start sbatch
-    sjobid = ssh.sbatch(conn, remote.jobid)
-    sc.print_ok("Succesfully queued sbatch job: %s" % sjobid)
+    sbatch_jobid = csc.ssh.sbatch(conn, remote.jobid)
+    sc.print_ok("Succesfully queued sbatch job: %s" % sbatch_jobid)
+
+    # write jobid to file
+    status_path = write_job_status(args.input, remote.jobid, sbatch_jobid)
+    sc.print_ok("Status written to file: %s" % status_path)
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog='File feeder to AlphaPose',
+        description='Inputs multiple files to AlphaPose')
+    parser.add_argument('input')
+    parser.add_argument("--local", action="store_true", default=False,
+                        help="Use local installation")
+    parser.add_argument('-r', '--reldir',
+                        default=os.path.join("..", "Pose"),
+                        help="Output directory relative to input file. (local usage only)")
+    parser.add_argument('-d', '--dryrun',
+                        action="store_true",
+                        help="Dry run. No actual data transfers.")
+    parser.add_argument('--cancel', type=int,
+                        help="Cancel sbatch job. eg. --cancel=112233")
+
     args = parser.parse_args()
 
     if args.local:

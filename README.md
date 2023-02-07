@@ -3,8 +3,8 @@
 ## Setup
 
 1. Clone this repository.
-2. Add `.\bin\` into PATH environment variable.
-
+2. Add `.\bin\` into `PATH` environment variable.
+3. Add repository directory into `JAVELIN_TOOLKIT_PATH` environment variable.
 
 ### Usage
 
@@ -21,3 +21,9 @@ recon3d --com .\2023-01-13\
 # visualize recostruction into video file (--save)
 viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
 ```
+
+## Configuration
+
+See docs for ffmpeg-sync.
+
+`connection.yml`: create from template file `connection.yml.dist` and setup with your  server credentials.

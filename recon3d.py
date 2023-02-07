@@ -18,7 +18,6 @@ from poi_detector import detect_poi
 from sequence_tools import select_sequence_idx
 import fps_interpolate
 from keypoints import KEYPOINTS
-import kalmanfilt as kf
 from nanmedianfilt import nanmedianfilt
 
 DEFAULT_FPS = 50
@@ -63,23 +62,27 @@ class AlphaposeCameraSet:
 
 
 class DataSource:
-    def __init__(self, root_path):
+    def __init__(self, root_path, subject=None, trial=None):
         self.root_path = root_path
+        self.subject = subject
+        self.trial = trial
         self.alphapose_camera_sets = []
-        self.parse_root_path(root_path)
+        self.parse_root_path(root_path, subject=subject, trial=trial)
 
-    def parse_root_path(self, root_path):
+    def parse_root_path(self, root_path, subject, trial):
         subjects = os.path.join(root_path, "Subjects", "*")
 
         initdata = {}
 
         for subject_dir in glob.glob(subjects):
             subject_id = subject_dir.split(os.path.sep)[-1]
+
+            if subject and subject_id != subject:
+                continue
+
             initdata[subject_id] = defaultdict(
                 lambda: {"subject_dir": None, "cams": {}})
 
-            # sync_glob = os.path.join("Sync",
-            #                        "%s_%s_*.mp4")
             pose_glob = os.path.join(subject_dir,
                                      "Pose",
                                      "%s_*_*" % (subject_id),
@@ -94,6 +97,8 @@ class DataSource:
                 assert len(parts) == 3
                 dir_subject_id, trial_id, cam_id = parts
                 assert dir_subject_id == subject_id
+                if trial and trial_id != trial:
+                    continue
                 initdata[subject_id][trial_id]["cams"][cam_id] = pose_fn
                 initdata[subject_id][trial_id]["subject_dir"] = subject_dir
 
@@ -207,12 +212,12 @@ def filter_data(poi_sequence, fps, visibility_threshold=0.5):
         for i in range(k, 78, 3):
             mf = nanmedianfilt(keypoint_arr[:, i], median_filter_window)
 #            mf[np.isnan(mf)] = 0
-            keypoint_arr[:, i] = mf#scipy.signal.filtfilt(b, a, mf)
+            bf = scipy.signal.filtfilt(b, a, mf)
+            keypoint_arr[:, i] = bf
             # kf.kalmanfilt1d(keypoint_arr[:, i],
             #                time_step=0.2,
             #                mesurement_noise=2.0)
             #scipy.signal.medfilt(keypoint_arr[:, i], [median_filter_window])
-
     return keypoint_arr
 
 
@@ -375,15 +380,40 @@ def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
     return posedata
 
 
-def compute_com(world_pos):
+def compute_com(world_pos, gender="m"):
     """Compute CoM from 3D position coordinates using model by Dempster"""
-    trunk_weight = 0.678
-    lower_extr_weight = 0.161
-    rprox_trunk = 0.626
-    rprox_lower_extr = 0.447
+    # trunk_weight = 0.678
+    # lower_extr_weight = 0.161
+    # rprox_trunk = 0.626
+    # rprox_lower_extr = 0.447
+
+    segments = [
+        # (proximal_kp, distal_kp, com_distance_f, com_distance_m, weight_f, weight_m)
+        (KEYPOINTS["Head"], KEYPOINTS["Head"], 0.0, 0.0, 0.0668, 0.0694),
+        (KEYPOINTS["Neck"], KEYPOINTS["LHip"], 0.4151, 0.4486, 0.4257 / 2, 0.4346 / 2),
+        (KEYPOINTS["Neck"], KEYPOINTS["RHip"], 0.4151, 0.4486, 0.4257 / 2, 0.4346 / 2),
+        (KEYPOINTS["LHip"], KEYPOINTS["LKnee"], 0.3612, 0.4095, 0.1478 / 2, 0.1416 / 2),
+        (KEYPOINTS["RHip"], KEYPOINTS["RKnee"], 0.3612, 0.4095, 0.1478 / 2, 0.1416 / 2),
+        (KEYPOINTS["LKnee"], KEYPOINTS["LAnkle"], 0.4416, 0.4459, 0.0481 + 0.0129, 0.0433 + 0.0137),
+        (KEYPOINTS["RKnee"], KEYPOINTS["RAnkle"], 0.4416, 0.4459, 0.0481 + 0.0129, 0.0433 + 0.0137),
+        (KEYPOINTS["LShoulder"], KEYPOINTS["LElbow"], 0.5754, 0.5772, 0.0255, 0.0271),
+        (KEYPOINTS["RShoulder"], KEYPOINTS["RElbow"], 0.5754, 0.5772, 0.0255, 0.0271),
+        (KEYPOINTS["LElbow"], KEYPOINTS["LWrist"], 0.4559, 0.4574, 0.0138 + 0.0056, 0.0162 + 0.0061),
+        (KEYPOINTS["RElbow"], KEYPOINTS["RWrist"], 0.4559, 0.4574, 0.0138 + 0.0056, 0.0162 + 0.0061),
+    ]
 
     # TODO: port to Halpe keypoint
-    KEYPOINTS[""]
+    comarr = np.zeros([world_pos.shape[0], 3])
+
+    # (x,y)
+    wft = sum(s[4] for s in segments)
+    wfm = sum(s[5] for s in segments)
+    w = 0.0
+    for (kp0, kp1, com_f, com_m, w_f, w_m) in segments:
+        p0 = world_pos[:, 3*kp0:3*kp0 + 3]
+        p1 = world_pos[:, 3*kp1:3*kp1 + 3]
+        comarr += (p0 + (p1 - p0) * com_f) * w_f / wft # TODO: ...
+        w+=w_f
 
     # calculate segment CoMs
     #   = head, arms & trunk
@@ -395,7 +425,7 @@ def compute_com(world_pos):
 
     # Whole body
     ### TODO: com = trunk_weight * com_trunk_cam1 + 2 * (lower_extr_weight * com_lower_extr_cam1);
-    return com
+    return comarr
 
 
 usage = """
@@ -410,16 +440,15 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser("poi_detector.py", usage=usage)
-    parser.add_argument("-o", "--output", default="worldpos")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-Y", "--sync", dest="sync_file_dir",
                         help="Path to directory containing 'ffmpeg-sync.yml' (only for fps interpolation).")
     parser.add_argument("--com", action="store_true")
     parser.add_argument("-S", "--subject",
-                        default="*",
+                        default=None,
                         help="Subject identifier. Eg. 'S1' as in 'S1_01_oe/alphapose-results.json'")
     parser.add_argument("-T", "--trial",
-                        default="*",
+                        default=None,
                         help="Trial identifier. Eg. '01' as in 'S1_01_oe/alphapose-results.json'")
     parser.add_argument("-c", "--calibration",
                         dest="calib_path",
@@ -430,7 +459,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # read directory structure
-    datasource = DataSource(args.input_directory)
+    datasource = DataSource(args.input_directory, args.subject, args.trial)
 
     # build camera calibration path
     default_clib_path = os.path.join(args.input_directory, "Calibration")
@@ -498,7 +527,7 @@ if __name__ == "__main__":
             sys.exit(0)
 
         # make 3D recostructions
-        world_pos = reconstruct_3d(posedata, cam_ids, camera_calibration, fps)
+        world_pos = reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2)
 
         # write to disk
         output_dir = os.path.join(camset.subject_dir, "Output")
@@ -521,8 +550,8 @@ if __name__ == "__main__":
 
         if args.com:
             com = compute_com(world_pos)
-            fncom = f"{args.output}-com"
-            # np.save(fncom)
-            #sc.print_ok(f"CoM coordinates written to: {fncom}.npy ({com.shape[0]})")
+            com_output_path = f"{output_filename}-com"
+            np.save(com_output_path, com)
+            sc.print_ok(f"CoM coordinates written to: {com_output_path}.npy ({com.shape[0]})")
 
     print()
