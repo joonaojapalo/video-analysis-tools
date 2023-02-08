@@ -8,8 +8,8 @@ import csc.rsync
 import csc.connection
 
 
-def csc_job_status(conn, jobid):
-    stata = csc.ssh.sacct(conn, jobid)
+def csc_job_status(remote):
+    stata = csc.ssh.sacct(remote.connection, remote.sbatch_jobid)
     print()
     sc.print_bold("Array job status:")
     for arraid, status in stata:
