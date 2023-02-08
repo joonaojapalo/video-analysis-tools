@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
                 cmds.append(cmd)
             else:
-                print(" File '%s' doesn't exist" % (input_path))
+                print("  File '%s' doesn't exist" % (input_path))
 
     if len(cmds) == 0:
         print_warn("\nNo commands to excecute")
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         print("  " + " ".join(cmd))
     print()
 
-    if not input_boolean_prompt("Execute commands (y/N)?"):
+    if not input_boolean_prompt("Execute %i commands (y/N)?" % len(cmds)):
         sys.exit(0)
 
     print("\nStart executing commands...\n")
