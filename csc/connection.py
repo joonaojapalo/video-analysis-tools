@@ -12,10 +12,10 @@ def get_toolkit_path():
     # connection conf path
     path = os.environ.get("JAVELIN_TOOLKIT_PATH")
 
-    if path:
-        return path
-    else:
-        return os.path.join(os.path.abspath("."), "connection.yml")
+    if not path:
+        path = os.path.abspath(".")
+
+    return os.path.join(os.path.abspath("."), "connection.yml")
 
 
 def read_conf():
