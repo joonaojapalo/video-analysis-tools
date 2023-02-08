@@ -73,7 +73,10 @@ def animate(frame_counter, n_frames, frame_start, fps):
     ax.view_init(azim=azim, elev=elev)
     plot_skeleton(posearr[frame])
     plot_head(posearr[frame])
-    plot_com(comarr[frame])
+
+    if comarr:
+        plot_com(comarr[frame])
+
     ax.set_aspect('equal')
 
 usage = """
