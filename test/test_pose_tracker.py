@@ -175,7 +175,8 @@ class TestPoseTracker (unittest.TestCase):
         ]
 
         # remap
-        pose_tracker.remap_idx_inplace(sequence, [["4.jpg", 5, 1]], [["2.jpg", 5], ["3.jpg", 5]])
+        pose_tracker.remap_idx_inplace(sequence, [["4.jpg", 5, 1]], [
+                                       ["2.jpg", 5], ["3.jpg", 5]])
 
         expected_sequence = [
             frame(1, [o(10001, 100, 100)]),
@@ -227,6 +228,22 @@ class TestPoseTracker (unittest.TestCase):
             frame(7, [o(10001, 106, 100)]),
             frame(8, [o(10001, 107, 100)]),
             frame(9, [o(10001, 108, 100)]),
+        ]
+        self.assertEqual(sequence, expected_sequence)
+
+    def test_multiple_duplicates(self):
+        sequence = [
+            frame(1, [o(1, 100, 100)]),
+            frame(2, [o(1, 101, 100), o(5, 101, 100.25), o(6, 101, 100.5)]),
+        ]
+        changes, duplicates = pose_tracker.get_pose_idx_events(sequence)
+        self.assertEqual(len(duplicates), 2)
+
+        pose_tracker.remap_idx_inplace(sequence, changes, duplicates)
+
+        expected_sequence = [
+            frame(1, [o(1, 100, 100)]),
+            frame(2, [o(1, 101, 100)])
         ]
         self.assertEqual(sequence, expected_sequence)
 

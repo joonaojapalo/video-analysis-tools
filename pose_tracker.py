@@ -159,7 +159,7 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
     # iterate over index change events
     for frame, i1, i0 in pose_idx_changes:
         frame_num = parse_frame_num(frame)
-        print("Frame %i, update %i -> %i" % (frame_num, i0, i1))
+        #print("Frame %i, update %i -> %i" % (frame_num, i0, i1))
 
         if i0 in open_intervals:
             # open interval closes
@@ -167,7 +167,7 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
             interval = [start_frame, frame_num, i0, int_vidx]
             intervals[i0].append(interval)
             del open_intervals[i0]
-            print("    interval", interval)
+            #print("    interval", interval)
             # ...new interval opens
             open_intervals[i1] = [frame_num, int_vidx]
 
@@ -177,11 +177,11 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
             virtual_idx_seq += 1
             interval = [0, frame_num, i0, virtual_idx_seq]
             intervals[i0].append(interval)
-            print("    first interval", interval)
+            #print("    first interval", interval)
             # ...new interval opens
             open_intervals[i1] = [frame_num, virtual_idx_seq]
-            print("    new virtual_idx (%i) for idx: %i (frame %i)" % (virtual_idx_seq, i0, frame_num))
-        print("    open intervals", open_intervals)
+            #print("    new virtual_idx (%i) for idx: %i (frame %i)" % (virtual_idx_seq, i0, frame_num))
+        #print("    open intervals", open_intervals)
 
     # close open remaining intervals
     last_frame = len(sequence)
@@ -189,7 +189,7 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
         start_frame, int_vidx = open_interval
         interval = [start_frame, last_frame + 1, orig_id, int_vidx]
         intervals[orig_id].append(interval)
-        print("Close remaining open int.", interval, "last frame:", last_frame)
+        #print("Close remaining open int.", interval, "last frame:", last_frame)
     #print("Intervals:")
     #pprint.pprint(intervals)
 
@@ -202,13 +202,9 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
         frame_num = parse_frame_num(frame["image_id"])
 
         # remove duplicates
-        if dupes_by_frame[frame["image_id"]]:
-            duplicate_idx_lookup = dict((obj["idx"], i) for i, obj in enumerate(frame["objs"]))
-
-            for idx in dupes_by_frame[frame["image_id"]]:
-                if idx in duplicate_idx_lookup:
-                    i = duplicate_idx_lookup[idx]
-                    del frame["objs"][i]
+        frame_dupe_indices = dupes_by_frame.get(frame["image_id"])
+        if frame_dupe_indices:
+            frame["objs"] = [ obj for obj in frame["objs"] if obj["idx"] not in frame_dupe_indices]
 
         for obj in frame["objs"]:
             idx = obj["idx"]
