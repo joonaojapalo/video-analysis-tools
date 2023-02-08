@@ -83,7 +83,7 @@ def get_pose_idx_events(sequence, return_stat=False):
                             idx_appear = appear_ilookup[aix]
                             idx_current = current_ilookup[cix]
                             if ratio > BBOX_OVERLAP_THRESHOLD:
-#                                print(" *** DUPLICATE", image_id, idx_appear, "with", idx_current, ratio)
+                                print(" *** DUPLICATE", image_id, idx_appear, "with", idx_current, ratio)
                                 # clear duplicate
                                 del frame_objs[idx_appear]
                                 frame_idxs.remove(idx_appear)
@@ -117,12 +117,13 @@ def get_pose_idx_events(sequence, return_stat=False):
                         if ratio > BBOX_OVERLAP_THRESHOLD:
                             index_changes.append([image_id, i1, i0])
                             stat["index_change"] += 1
-                            print("  (%s) overlap: %i -> %i : %.2f" %
-                                    (image_id, i0, i1, ratio))
+                            #print("  (%s) overlap: %i -> %i : %.2f" %
+                            #        (image_id, i0, i1, ratio))
             last_frame_dropped = dropped_idx
         else:
             # Case: duplicate in first frame
-            print("No last frame idx for", frame["image_id"])
+            if frame["image_id"] != "0.jpg":
+                print("No last frame idx for", frame["image_id"])
             pass
 
         # update indices

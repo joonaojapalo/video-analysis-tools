@@ -65,7 +65,7 @@ def read_ap_dir(path):
 if __name__ == "__main__":
     path = sys.argv[1]
     frame_idx = int(sys.argv[2])
-    box_idx = int(sys.argv[3]) if len(sys.argv) > 2 else None
+    box_idx = int(sys.argv[3]) if len(sys.argv) > 3 else None
 
     # load alphapose data & video
     jsonfile, videofile = read_ap_dir(path)
