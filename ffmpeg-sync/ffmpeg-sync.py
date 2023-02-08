@@ -198,6 +198,10 @@ if __name__ == "__main__":
                 # relative output
                 output_path = base_dir.joinpath(args.syncdir).mkdir(parents=True, exist_ok=True)
                 output_path = base_dir.joinpath(args.syncdir, output_fname)
+            
+            if output_path.is_file() and os.path.getsize(output_path) > 0:
+                print("  Skipping existing output file: %s" % (output_path))
+                continue
 
             if input_path.is_file():
                 capture_fps = int(
