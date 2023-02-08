@@ -49,7 +49,6 @@ def interpolate(pose_arr, input_fps=240, target_fps=720):
         interpolated.extend(interpolated_rows)
         previous = current
 
-    print("intep", len(interpolated), len(interpolated[0]))
     if state != 0:
         # extrapolate last frame
         previous = pose_arr[-2]

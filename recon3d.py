@@ -380,8 +380,6 @@ def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
     return posedata
 
 
-
-
 usage = """
   python recon3d.py ./2013-01-13
 
@@ -437,8 +435,11 @@ if __name__ == "__main__":
     # load data
     print("Opening pose data files for subjects.")
 
+    outputfiles = []
+
     for camset in datasource.alphapose_camera_sets:
         cam_ids = camset.get_cam_ids()
+
         fps = get_target_fps(cam_ids, sync_file_dir)
 
         # load pose data
@@ -455,10 +456,14 @@ if __name__ == "__main__":
             pois = detect_poi(sequence)
 
             if len(pois) == 0:
-                sc.print_fail("No POI found")
+                print("    - FAILED detection: No POI found")
+                # remove camera from 3d reconstruction set
+                del cam_ids[cam_ids.index(cam_id)]
                 continue
             elif len(pois) > 1:
-                sc.print_fail("Multiple POI candidates found", pois)
+                print("    - FAILED detection: Multiple POI candidates found", pois)
+                # remove camera from 3d reconstruction set
+                del cam_ids[cam_ids.index(cam_id)]
                 continue
             else:
                 poi = pois[0]
@@ -484,10 +489,11 @@ if __name__ == "__main__":
 
         if not check_frame_count(posedata, cam_ids):
             sc.print_fail("Frame count check fail.")
-            sys.exit(0)
+            continue
 
         # make 3D recostructions
-        world_pos = reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2)
+        world_pos = reconstruct_3d(
+            posedata, cam_ids, camera_calibration, n_cams_min=2)
 
         # write to disk
         output_dir = os.path.join(camset.subject_dir, "Output")
@@ -505,13 +511,16 @@ if __name__ == "__main__":
             pprint.pprint(stats)
             print()
 
-        sc.print_ok(
-            f"World position coordinates written to: {output_path}.npy ({world_pos.shape[0]})")
+        outputfiles.append(f"{output_path}.npy")
 
         if args.com:
-            com_trajectory = com.compute_world_pos)
-            com_output_path = f"{output_filename}-com"
+            com_trajectory = com.compute(world_pos)
+            com_output_path = os.path.join(
+                output_dir, f"{output_filename}-com")
             np.save(com_output_path, com_trajectory)
-            sc.print_ok(f"CoM coordinates written to: {com_output_path}.npy ({com_trajectory.shape[0]})")
+            outputfiles.append(f"{com_output_path}.npy")
+
+    for output_path in outputfiles:
+        sc.print_ok(f"Coordinates written to: {output_path}")
 
     print()
