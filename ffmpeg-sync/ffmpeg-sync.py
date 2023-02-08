@@ -215,6 +215,8 @@ if __name__ == "__main__":
                                         ts + tot_time)
 
                 cmds.append(cmd)
+            else:
+                print(" File '%s' doesn't exist")
 
     if len(cmds) == 0:
         print_warn("\nNo commands to excecute")
