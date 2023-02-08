@@ -74,7 +74,7 @@ def animate(frame_counter, n_frames, frame_start, fps):
     plot_skeleton(posearr[frame])
     plot_head(posearr[frame])
 
-    if comarr:
+    if comarr is not None:
         plot_com(comarr[frame])
 
     ax.set_aspect('equal')
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         plot_skeleton(posearr[frame])
         plot_head(posearr[frame])
 
-        if comarr:
+        if comarr is not None:
             plot_com(comarr[frame])
 
         ax.set_aspect('equal')
