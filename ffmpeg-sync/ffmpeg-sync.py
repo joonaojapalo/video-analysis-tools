@@ -179,7 +179,7 @@ if __name__ == "__main__":
         else:
             print("\nNo data found from file:", indexfile_path)
             print("  -> If this is unexpected, please ensure all required columns have values for expected video clips:")
-            print("    %s" % ("\n    * ".join(xlsx_cols)))
+            print("    * %s" % ("\n    * ".join(xlsx_cols)))
 
         for [trial_id, camera_id, frame, duration, forceplate_delay] in data:
             indexfile_path = Path(indexfile_path)
