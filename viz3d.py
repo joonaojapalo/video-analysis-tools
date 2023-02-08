@@ -97,10 +97,15 @@ if __name__ == "__main__":
     if args.output:
         print("WARNING: Output file already exist:", args.output)
 
-    # load
+    # load pose data
     posearr = np.load(args.input)
+
+    # load CoM data (if exists)
     if args.com:
         comarr = np.load(args.com)
+    else:
+        comarr = None
+
     frame_start = 0
 
     fig = plt.figure(figsize=(11.1, 8.3), dpi=72)
@@ -111,7 +116,10 @@ if __name__ == "__main__":
         frame = int(args.frame)
         plot_skeleton(posearr[frame])
         plot_head(posearr[frame])
-        plot_com(comarr[frame])
+
+        if comarr:
+            plot_com(comarr[frame])
+
         ax.set_aspect('equal')
         plt.show()
     else:
