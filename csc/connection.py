@@ -15,7 +15,7 @@ def get_toolkit_path():
     if not path:
         path = os.path.abspath(".")
 
-    return os.path.join(os.path.abspath("."), "connection.yml")
+    return os.path.join(path, "connection.yml")
 
 
 def read_conf():
