@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 
 import shellcolors as sc
+import csc.connection
 import csc.ssh
 import csc.rsync
 
@@ -89,17 +90,13 @@ def write_job_status(inputdir, local_jobid, sbatch_jobid):
 
 
 def run_csc(args):
-    remote_basedir = "/scratch/project_2006605/alphapose-jobs/"
-
-    conn = csc.ssh.Connection("ojapjoil", "mahti.csc.fi",
-                          args.input, remote_basedir)
-    remote = csc.rsync.RemoteMapping(conn)
+    remote = csc.connection.get_remote_mapping(args.input)
 
     print("Local JOBID:", remote.jobid)
 
     try:
         sc.print_bold("Transfering input videos.")
-        csc.rsync.upload(conn, remote, dry_run=args.dryrun)
+        csc.rsync.upload(remote.connection, remote, dry_run=args.dryrun)
         sc.print_ok("Succesfully transferred input files.")
 
     except subprocess.CalledProcessError as e:
@@ -107,11 +104,11 @@ def run_csc(args):
         sys.exit(1)
 
     # run remote job prepare script
-    csc.ssh.prepare_alphapose_jobs(conn, remote.jobid)
+    csc.ssh.prepare_alphapose_jobs(remote.connection, remote.jobid)
     sc.print_ok("Succesfully prepared sbatch job.")
 
     # start sbatch
-    sbatch_jobid = csc.ssh.sbatch(conn, remote.jobid)
+    sbatch_jobid = csc.ssh.sbatch(remote.connection, remote.jobid)
     sc.print_ok("Succesfully queued sbatch job: %s" % sbatch_jobid)
 
     # write jobid to file
@@ -132,8 +129,6 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dryrun',
                         action="store_true",
                         help="Dry run. No actual data transfers.")
-    parser.add_argument('--cancel', type=int,
-                        help="Cancel sbatch job. eg. --cancel=112233")
 
     args = parser.parse_args()
 

@@ -1,22 +1,8 @@
 import subprocess
-import os
-from pathlib import Path
 import re
 
-
-class Connection:
-    def __init__(self, user, host, local_basedir, remote_basedir):
-        self.user = user
-        self.host = host
-        self.local_basepath = Path(local_basedir)
-        self.remote_basedir = remote_basedir
-
-        if not self.local_basepath.is_dir():
-            raise ValueError("Local base dir not exist: %s" % local_basedir)
-
-    def get_jobdir(self, local_jobid, subdir=""):
-        return os.path.join(self.remote_basedir,
-                            local_jobid, subdir).replace(os.path.sep, "/")
+# remote shell output pattern
+SUCCESS_MESSAGE_JOBFILE = b"ALPHAPOSE JOB FILE CREATION: OK"
 
 
 def run_command(connection, command):
@@ -27,9 +13,6 @@ def run_command(connection, command):
     ]
 
     return subprocess.check_output(cmd)
-
-
-SUCCESS_MESSAGE_JOBFILE = b"ALPHAPOSE JOB FILE CREATION: OK"
 
 
 def prepare_alphapose_jobs(connection, jobid):
@@ -48,7 +31,7 @@ def prepare_alphapose_jobs(connection, jobid):
         raise Exception("Alphapose job file prepare failed.")
 
 
-def sbatch(connection, jobid):
+def sbatch(connection, jobid, verbose=True):
     """Submit Slurm job.
 
     Returns:
@@ -61,8 +44,10 @@ def sbatch(connection, jobid):
     ]
 
     cmd = " ".join(prepare_cmd)
-    print("Running remote command:", cmd)
-    return
+
+    if verbose:
+        print("Running remote command:", cmd)
+
     output = run_command(connection, cmd)
     match = re.search(b"Submitted batch job (\d+)", output)
 
@@ -72,13 +57,14 @@ def sbatch(connection, jobid):
     return int(match.groups()[0])
 
 
-def sacct(connection, jobid):
+def sacct(connection, jobid, verbose=False):
     prepare_cmd = [
         f"sacct -j {jobid}"
     ]
 
     cmd = " ".join(prepare_cmd)
-    print("Running remote command:", cmd)
+    if verbose:
+        print("Running remote command:", cmd)
     output = run_command(connection, cmd)
 
     if output.find(b"JobID") < 0 or output.find(b"State") < 0:
