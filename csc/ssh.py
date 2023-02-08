@@ -17,9 +17,9 @@ def run_command(connection, command):
 
 def prepare_alphapose_jobs(connection, jobid):
     prepare_cmd = [
-        f"cd {connection.remote_basedir};"
+        f"cd {connection.remote_basedir};",
         f"mkdir -p {jobid}/log_job;",
-        f"mkdir -p {jobid}/log_error;"
+        f"mkdir -p {jobid}/log_error;",
         f"python3 prepare_alphapose_jobs.py -J {jobid} {jobid}/input/"
     ]
 

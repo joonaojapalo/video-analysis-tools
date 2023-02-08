@@ -1,7 +1,13 @@
+import argparse
+import sys
+
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.interpolate
+
+from ffmpeg_sync.index_xlsx import read_index_xlsx
+import indexfiles
 
 BLUE = (255, 0, 0)
 RED = (0, 0, 255)
@@ -11,7 +17,8 @@ GRAY_DARK = (32, 32, 32)
 
 
 def com_velocity(c, fps=240):
-    return np.diff(c[:, 0]) * fps # np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2+np.diff(c[:, 2])**2) * fps
+    # np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2+np.diff(c[:, 2])**2) * fps
+    return np.diff(c[:, 0]) * fps
 
 
 def plot_v(v, fps=240):
@@ -118,12 +125,39 @@ def render_output(input_video, outfile, v):
     print("\nDone.")
 
 
-if __name__ == "__main__":
-    # compute velocity (3D)
-    input_com = "S1_02-com.npy"
-    v = compute_velocity(input_com)
+def process_files(input_dir):
+    index_file_paths = indexfiles.glob_index_files(input_dir)
+    xlsx_cols = [
+        "XOTOFrame",
+        "RLTDFrame",
+        "BLTDFrame",
+        "ReleaseFrame"
+    ]
 
-    # render on video
-    input_video = "2023-01-18\\Subjects\\S1\\Sync\\S1_03_oe-sync.mp4"
-    outfile = "analysis-test.mp4"
-    render_output(input_video, outfile, v)
+    print(index_file_paths)
+
+    for indexfile_path in index_file_paths:
+        try:
+            data, headers = read_index_xlsx(indexfile_path, xlsx_cols)
+        except Exception as e:
+            print(e)
+            sys.exit(1)
+
+        print(data)
+        # compute velocity (3D)
+        input_com = "S1_02-com.npy"
+        v = compute_velocity(input_com)
+
+        # render on video
+        input_video = "2023-01-18\\Subjects\\S1\\Sync\\S1_03_oe-sync.mp4"
+        outfile = "analysis-test.mp4"
+        render_output(input_video, outfile, v)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("analyze-com")
+    parser.add_argument("input_dir",
+                        help="Input directory file, eg. 2023-02-16/")
+    args = parser.parse_args()
+
+    process_files(args.input_dir)
