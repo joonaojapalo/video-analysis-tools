@@ -1,5 +1,6 @@
 import sys
 
+
 class ShellColors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -12,14 +13,34 @@ class ShellColors:
     UNDERLINE = '\033[4m'
 
 
+ENABLE_COLORS = False
+
+
 def print_bold(msg):
-    print(ShellColors.BOLD + str(msg) + ShellColors.ENDC)
+    if ENABLE_COLORS:
+        print(ShellColors.BOLD + str(msg) + ShellColors.ENDC)
+    else:
+        print(msg)
+
 
 def print_ok(msg):
-    print(ShellColors.OKGREEN + str(msg) + ShellColors.ENDC)
+    if ENABLE_COLORS:
+        print(ShellColors.OKGREEN + str(msg) + ShellColors.ENDC)
+    else:
+        print(msg)
+
 
 def print_warn(msg):
-    print(ShellColors.WARNING + "WARNING:" + str(msg) + ShellColors.ENDC, file=sys.stderr)
+    if ENABLE_COLORS:
+        print(ShellColors.WARNING + "WARNING:" +
+              str(msg) + ShellColors.ENDC, file=sys.stderr)
+    else:
+        print(msg)
+
 
 def print_fail(msg):
-    print(ShellColors.FAIL + "ERROR:" + str(msg) + ShellColors.ENDC, file=sys.stderr)
+    if ENABLE_COLORS:
+        print(ShellColors.FAIL + "ERROR:" + str(msg) +
+              ShellColors.ENDC, file=sys.stderr)
+    else:
+        print(msg)

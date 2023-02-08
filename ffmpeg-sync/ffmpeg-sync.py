@@ -10,7 +10,7 @@ from pathlib import Path
 from fps import parse_fps
 from index_xlsx import validate_xlsx, read_index_xlsx
 import config
-from shellcolors import print_ok, print_fail, print_warn, ShellColors
+from shellcolors import print_ok, print_fail, print_warn, ShellColors, ENABLE_COLORS
 
 # time format parser
 #import re
@@ -116,13 +116,29 @@ def glob_index_files(basepath):
 #    return [input_file, output_file, sync_def, dt]
 
 
-def input_boolean_prompt(prompt_str):
+
+def get_msg(msg):
+    if ENABLE_COLORS:
+        return ShellColors.BOLD + msg + " " + ShellColors.ENDC
+    else:
+        return msg
+
+
+def input_boolean_prompt(prompt_str, true="y", false="n", default=False):
+    """Get user input from command line."""
+
     while True:
-        answer = input(ShellColors.BOLD + prompt_str +
-                       " " + ShellColors.ENDC).lower()
-        if answer == 'y':
+        answer = input(get_msg(prompt_str)).lower()
+        if default == False:
+            accept = [true.lower()]
+            decline = [false.lower(), '']
+        else:
+            accept = [true.lower(), '']
+            decline = [false.lower()]
+
+        if answer in accept:
             return True
-        elif answer in ['n', '']:
+        elif answer in decline:
             return False
 
 
@@ -159,7 +175,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         if len(data):
-            print("\nPreparing video cut & synchronize tasks:")
+            print("\nPreparing video cut & synchronize tasks for '%s':" % os.path.basename(indexfile_path))
         else:
             print("\nNo data found from file:", indexfile_path)
 
