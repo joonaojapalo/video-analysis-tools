@@ -184,8 +184,8 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
         interval = [start_frame, last_frame + 1, orig_id, int_vidx]
         intervals[orig_id].append(interval)
         print("Close remaining open int.", interval, "last frame:", last_frame)
-    print("inTERVALS:")
-    pprint.pprint(intervals)
+    #print("Intervals:")
+    #pprint.pprint(intervals)
 
     dupes_by_frame = defaultdict(list)
     for image_id, idx in duplicates:
