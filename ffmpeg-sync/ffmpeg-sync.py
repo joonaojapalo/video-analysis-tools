@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
                 cmds.append(cmd)
             else:
-                print(" File '%s' doesn't exist")
+                print(" File '%s' doesn't exist" % (input_path))
 
     if len(cmds) == 0:
         print_warn("\nNo commands to excecute")
