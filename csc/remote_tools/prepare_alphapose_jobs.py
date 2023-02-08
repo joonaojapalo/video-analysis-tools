@@ -6,6 +6,7 @@ GPL 3.0 or newer licence applies
 """
 
 import os  # File listing
+import sys
 from pathlib import Path
 import argparse
 
@@ -34,7 +35,6 @@ def get_alphapose_commands(input_basepath, output_basepath, alphapose_path, path
     commands = []
     for pattern in patterns:
         for path in input_basepath.rglob(pattern):
-            print(path)
             cmd = build_alphapose_command(
                 Path(path),
                 output_basepath,
@@ -84,6 +84,8 @@ def build_alphapose_command(path, output_basepath, input_basepath, alphapose_pat
         # Create the output folder structure beforehand here
         os.makedirs(out_path, exist_ok=True)
         return " ".join(cmd) + '\n'
+    else:
+        print("Target file alerady exists", target_file)
 
 
 usage = """
@@ -142,15 +144,22 @@ if __name__ == "__main__":
     NUM_ARRAY_ITEMS = 32
     n_commands = len(commands)
 
-    with open("alphapose-job.sh.template") as template_fd:
-        with open(sandbox.joinpath("alphapose-job.sh"), "w") as output_fd:
-            n_arr_items = min(n_commands, NUM_ARRAY_ITEMS)
-            jobs_per_item = n_commands // n_arr_items
-            for line in template_fd:
-                line= line.replace("{{JOBFILE}}", args.outputfile)
-                line = line.replace("{{ARRAY_ITEMS}}", str(n_arr_items))
-                line = line.replace("{{JOBS_PER_ITEM}}", str(jobs_per_item))
-                output_fd.write(line)
+    n_arr_items = min(n_commands, NUM_ARRAY_ITEMS)
+
+    if n_arr_items == 0:
+        print("No commands to run.")
+        print("ALPHAPOSE JOB FILE CREATION: NO COMMANDS")
+        sys.exit(0)
+    else:
+        with open("alphapose-job.sh.template") as template_fd:
+            with open(sandbox.joinpath("alphapose-job.sh"), "w") as output_fd:
+
+                jobs_per_item = n_commands // n_arr_items
+                for line in template_fd:
+                    line= line.replace("{{JOBFILE}}", args.outputfile)
+                    line = line.replace("{{ARRAY_ITEMS}}", str(n_arr_items))
+                    line = line.replace("{{JOBS_PER_ITEM}}", str(jobs_per_item))
+                    output_fd.write(line)
 
     num_lines = sum(1 for line in open(outputfile))
     print(f"{num_lines} commands written to {outputfile}")

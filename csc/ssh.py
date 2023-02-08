@@ -3,6 +3,7 @@ import re
 
 # remote shell output pattern
 SUCCESS_MESSAGE_JOBFILE = b"ALPHAPOSE JOB FILE CREATION: OK"
+SUCCESS_MESSAGE_JOBFILE_EMPTY = b"ALPHAPOSE JOB FILE CREATION: NO COMMANDS"
 
 
 def run_command(connection, command):
@@ -28,7 +29,8 @@ def prepare_alphapose_jobs(connection, jobid):
     output = run_command(connection, cmd)
 
     if output.find(SUCCESS_MESSAGE_JOBFILE) < 0:
-        raise Exception("Alphapose job file prepare failed.")
+        if output.find(SUCCESS_MESSAGE_JOBFILE_EMPTY) < 0:
+            raise Exception("Alphapose job file prepare failed.")
 
 
 def sbatch(connection, jobid, verbose=True):
