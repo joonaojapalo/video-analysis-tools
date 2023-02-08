@@ -83,7 +83,12 @@ def get_pose_idx_events(sequence, return_stat=False):
                             idx_appear = appear_ilookup[aix]
                             idx_current = current_ilookup[cix]
                             if ratio > BBOX_OVERLAP_THRESHOLD:
-                                print(" *** DUPLICATE", image_id, idx_appear, "with", idx_current, ratio)
+                                #print(" *** DUPLICATE", image_id, idx_appear, "with", idx_current, ratio)
+
+                                if frame_objs.get(idx_appear) is None:
+                                    # already deleted, duplicate with multiple other poses
+                                    continue
+
                                 # clear duplicate
                                 del frame_objs[idx_appear]
                                 frame_idxs.remove(idx_appear)
