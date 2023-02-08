@@ -28,7 +28,7 @@ def read_conf():
                 raise Exception("field 'connection' missing: %s" % fn)
             return conf
     else:
-        shellcolors.print_warn("Config file doesn't exist: %s" % fn)
+        raise Exception("Config file doesn't exist: %s" % fn)
 
 
 def get_connection(local_basedir):
