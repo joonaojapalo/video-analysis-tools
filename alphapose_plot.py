@@ -63,6 +63,12 @@ def read_ap_dir(path):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print()
+        print("Usage: alphapose_plot PATH_TO_POSE_DIR FRAME_NUMBER [POSE_INDEX]")
+        print()
+        sys.exit(1)
+
     path = sys.argv[1]
     frame_idx = int(sys.argv[2])
     box_idx = int(sys.argv[3]) if len(sys.argv) > 3 else None
