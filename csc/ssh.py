@@ -38,7 +38,6 @@ def sbatch(connection, jobid, verbose=True):
     int: remote job id
     """
     prepare_cmd = [
-        f"source ~/.bash_profile;",
         f"cd {connection.remote_basedir}/{jobid};",
         f"sbatch alphapose-job.sh"
     ]
