@@ -14,7 +14,7 @@ Pose estimation is to be done on computation-focused server infrastructure.
 1. Install [AlphaPose](https://github.com/MVIG-SJTU/AlphaPose/blob/master/docs/INSTALL.md).
 2. Set `ALPHAPOSE_PATH` environment variable to point to AlphaPose installation.
 3. Create a *sandbox directory* for alphapose jobs with proper permissions.
-4. Copy files (scp) from `csc/remote_tools` into the created *sandbox directory*.
+4. Copy files (scp) from `csc/remote_tools/` into the created *sandbox directory*.
 
 ### Usage
 
