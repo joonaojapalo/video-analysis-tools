@@ -96,7 +96,7 @@ parser = argparse.ArgumentParser(description="Job file generator.")
 parser.add_argument("input_dir")
 parser.add_argument("-o", "--outdir",
                     default="output",
-                    help="Output root directory. eg. '/scratch/project_2006605/b2r_pilot/alphapose/hienoo/'")
+                    help="Output root directory relative to ALPHAPOSE_PATH. eg. 'output'")
 parser.add_argument("-f", "--outputfile",
                     default="alphapose-jobs.txt",
                     help="Output file name.")

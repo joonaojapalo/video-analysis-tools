@@ -3,8 +3,18 @@
 ## Setup
 
 1. Clone this repository.
-2. Add `.\bin\` into `PATH` environment variable.
-3. Add repository directory into `JAVELIN_TOOLKIT_PATH` environment variable.
+2. Install Python libraries denoted by `requirements.txt` into environment of choise.
+3. Add `.\bin\` into `PATH` environment variable.
+4. Add repository directory into `JAVELIN_TOOLKIT_PATH` environment variable.
+
+## Server setup
+
+Pose estimation is to be done on computation-focused server infrastructure.
+
+1. Install [AlphaPose](https://github.com/MVIG-SJTU/AlphaPose/blob/master/docs/INSTALL.md).
+2. Set `ALPHAPOSE_PATH` environment variable to point to AlphaPose installation.
+3. Create a *sandbox directory* for alphapose jobs with proper permissions.
+4. Copy files (scp) from `csc/remote_tools` into the created *sandbox directory*.
 
 ### Usage
 
@@ -22,6 +32,10 @@ ssh user@host.com
 # (write down sbatch job id)
 exit
 
+# write sbatch job id from remote shell output into the local
+# job file eg. 2023-02-15\job-2023-02-15_01.json which was created by
+# run-alphapose tool
+
 # wait for and download results
 csc-jobs download 2023-02-15\job-2023-02-15_01.json
 
@@ -29,7 +43,7 @@ csc-jobs download 2023-02-15\job-2023-02-15_01.json
 recon3d --com 2023-01-15
 
 # write analysis to video
-analyze-com 
+analyze-com 2023-01-15
 ```
 
 ## Inspection
@@ -41,7 +55,10 @@ csc-jobs status path\to\job-<LocalJOBID>.json # replace <LocalJOBID>
 
 Visualize 3d reconstructions:
 ```sh
-# visualize recostruction into video file (--save)
+# visualize skeleton and CoM
+viz3d .\2023-01-13\Subjects\S1\Output\S1_01.npy --com .\2023-01-13\Subjects\S1\Output\S1_01-com.npy
+
+# save recostruction as video file
 viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
 ```
 
