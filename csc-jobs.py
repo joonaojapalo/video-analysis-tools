@@ -56,6 +56,7 @@ class JobException (Exception):
 
 def watch(remote, wait_for_status=SBATCH_COMPLETED):
     while True:
+        print(".", end="")
         status = get_job_status(remote)
         if status == wait_for_status:
             print()
@@ -63,7 +64,6 @@ def watch(remote, wait_for_status=SBATCH_COMPLETED):
         elif status == SBATCH_FAILED:
             print()
             raise JobException("Job failed", remote.sbatch_jobid)
-        print(".", end="")
         time.sleep(5)
 
 
