@@ -10,14 +10,28 @@
 
 ```sh
 # sync and trim videos
-ffmpeg-sync Subjects\
+ffmpeg-sync 2023-02-15\
 
 # run pose estimation
-run-alphapose Subjects\**\Sync\*.mp4
+run-alphapose 2023-02-15\
+
+# start remote job
+ssh user@host.com
+./start_alphapose_batch.sh 2023-02-15_01
+# ()
+
+# wait for and download results
+csc-jobs download 2023-02-15\job-2023-02-15_01.json
 
 # reconstruct all subjects & throws, also compute CoM
-recon3d --com .\2023-01-13\
+recon3d --com 2023-01-15
 
+# write analysis to video
+analyze-com 
+```
+
+## Inspection
+```sh
 # visualize recostruction into video file (--save)
 viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
 ```
