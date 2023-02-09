@@ -53,6 +53,11 @@ Check Alphapose job status:
 csc-jobs status path\to\job-<LocalJOBID>.json # replace <LocalJOBID>
 ```
 
+Visualize AlphaPose results:
+```sh
+viz_alphapose .\Sync\S1_08_ve-sync.mp4 .\Pose\S1_08_ve-sync\alphapose-results.json
+```
+
 Visualize 3d reconstructions:
 ```sh
 # visualize skeleton and CoM
