@@ -1,5 +1,7 @@
 import argparse
 import sys
+from pathlib import Path
+import re
 
 import numpy as np
 import cv2
@@ -21,11 +23,11 @@ def com_velocity(c, fps=240):
     return np.diff(c[:, 0]) * fps
 
 
-def plot_v(v, fps=240):
+def plot_v(v, fps=240, title="CoM"):
     # discrete diff starts at 1 frame
     t = (1 + np.arange(v.shape[0])) / fps
     plt.plot(t, v)
-    plt.title(input_com)
+    plt.title(title)
     plt.xlabel("sec")
     plt.ylabel("m/s")
     plt.grid()
@@ -63,7 +65,7 @@ def render_logo(image):
     a = cv2.imread("a.jpeg")
 
 
-def render_output(input_video, outfile, v):
+def render_output(input_video, outfile, v_arr):
     # read input
     input_stream = cv2.VideoCapture(input_video)
 
@@ -74,8 +76,8 @@ def render_output(input_video, outfile, v):
     # frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # build velocity curve points
-    Nv = v.shape[0]
-    interp_v = scipy.interpolate.interp1d(np.arange(Nv), v)
+    Nv = v_arr.shape[0]
+    interp_v = scipy.interpolate.interp1d(np.arange(Nv), v_arr)
     curve_x = np.arange(width - 1) / (width - 1) * (Nv - 1)
     curve_y = interp_v(curve_x)
     CURVE_BOTTOM = 340
@@ -103,7 +105,7 @@ def render_output(input_video, outfile, v):
         # image
     #    cv2.circle(image, [20, 20], 10, YELLOW, 4)
         if num_frame > 1:
-            frame_v = v[num_frame - 1]
+            frame_v = v_arr[num_frame - 1]
             # velocity as text
             cv2.putText(image, "%.2f m/s" % frame_v, (10, CURVE_BOTTOM + 10),
                         cv2.FONT_HERSHEY_SIMPLEX,
@@ -125,25 +127,44 @@ def render_output(input_video, outfile, v):
     print("\nDone.")
 
 
+def get_input_files(index_dir_path, throw_id):
+    d = index_dir_path.joinpath("Output")
+    coms = d.glob(f"*_{throw_id}-com.npy")
+    if len(coms) == 0:
+        raise Exception("No CoM trajectory file found in: %s" % str(d))
+    if len(coms) > 1:
+        raise Exception(
+            "CoM trajectories for multiple subjects found in: %s" % str(d))
+
+
 def process_files(input_dir):
     index_file_paths = indexfiles.glob_index_files(input_dir)
     xlsx_cols = [
+        "Throw",
         "XOTOFrame",
         "RLTDFrame",
         "BLTDFrame",
         "ReleaseFrame"
     ]
 
-    print(index_file_paths)
-
     for indexfile_path in index_file_paths:
         try:
-            data, headers = read_index_xlsx(indexfile_path, xlsx_cols)
+            rows, headers = read_index_xlsx(indexfile_path, xlsx_cols)
         except Exception as e:
             print(e)
             sys.exit(1)
 
-        print(data)
+        if len(rows) == 0:
+            print(" * No event timings for (all columns are required): %s" %
+                  indexfile_path)
+            continue
+
+        indexfile_path
+        p = Path(indexfile_path)
+        print(rows)
+        for row in rows:
+            input_video, input_com = get_input_files(p.parent, row[0])
+        return
         # compute velocity (3D)
         input_com = "S1_02-com.npy"
         v = compute_velocity(input_com)
@@ -156,8 +177,15 @@ def process_files(input_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze-com")
-    parser.add_argument("input_dir",
+    parser.add_argument("input_video",
+                        help="Input directory file, eg. 2023-02-16/")
+    parser.add_argument("input_com",
                         help="Input directory file, eg. 2023-02-16/")
     args = parser.parse_args()
 
-    process_files(args.input_dir)
+#    process_files(args.input_dir)
+
+    outfile = "analysis-test.mp4"
+    input_com = args.input_com
+    v_arr = compute_velocity(input_com)
+    render_output(args.input_video, outfile, v_arr)
