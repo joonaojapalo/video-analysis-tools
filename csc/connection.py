@@ -26,17 +26,17 @@ class Connection:
 
 
 class RemoteMapping:
-    def __init__(self, connection, local_jobid=None, sbatch_jobid=None):
+    def __init__(self, connection, local_jobid=None, sbatch_jobid=None, sequence=1):
         self.connection = connection
         self.sbatch_jobid = sbatch_jobid
         if local_jobid:
             self.jobid = local_jobid
         else:
             self.jobid = self._generate_local_job_id(
-                self.connection.local_basepath)
+                self.connection.local_basepath, sequence)
 
-    def _generate_local_job_id(self, local_basepath):
-        return f"{local_basepath.name}_01"
+    def _generate_local_job_id(self, local_basepath, sequence=1):
+        return "%s_%02d" % (local_basepath.name, sequence)
 
     def get_jobdir(self):
         return self.connection.get_job_dir(self.jobid)
@@ -79,7 +79,7 @@ def get_connection(local_basedir):
                                  conf["remote_dir"])
 
 
-def get_remote_mapping(local_basedir, jobfile=None):
+def get_remote_mapping(local_basedir, jobfile=None, sequence=1):
     conn = get_connection(local_basedir)
 
     if jobfile:
@@ -89,6 +89,6 @@ def get_remote_mapping(local_basedir, jobfile=None):
             job_handle = json.load(fd)
             local_jobid = job_handle["local_jobid"]
             sbatch_jobid = job_handle["sbatch_jobid"]
-        return RemoteMapping(conn, local_jobid, sbatch_jobid)
+        return RemoteMapping(conn, local_jobid, sbatch_jobid, sequence=sequence)
     else:
-        return RemoteMapping(conn)
+        return RemoteMapping(conn, sequence=sequence)

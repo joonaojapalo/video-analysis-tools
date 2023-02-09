@@ -90,7 +90,7 @@ def write_job_status(inputdir, local_jobid, sbatch_jobid):
 
 
 def run_csc(args):
-    remote = csc.connection.get_remote_mapping(args.input)
+    remote = csc.connection.get_remote_mapping(args.input, None, args.seq)
 
     print("Local JOBID:", remote.jobid)
 
@@ -126,6 +126,10 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--reldir',
                         default=os.path.join("..", "Pose"),
                         help="Output directory relative to input file. (local usage only)")
+    parser.add_argument('-S', '--seq',
+                        default=1,
+                        type=int,
+                        help="Batch sequence number. Default: 1.")
     parser.add_argument('-d', '--dryrun',
                         action="store_true",
                         help="Dry run. No actual data transfers.")
