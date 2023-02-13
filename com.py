@@ -35,17 +35,23 @@ def compute(world_pos, gender="m"):
          0.4574, 0.0138 + 0.0056, 0.0162 + 0.0061),
     ]
 
-    # TODO: port to Halpe keypoint
+    # TODO: check availabile segments
+    avail_segments = [] # [[HEAD, Nenck-LHip]]
+    for (kp0, kp1, com_f, com_m, w_f, w_m) in segments:
+        p0 = world_pos[:, 3*kp0:3*kp0 + 3]
+        p1 = world_pos[:, 3*kp1:3*kp1 + 3]
+        
+
     comarr = np.zeros([world_pos.shape[0], 3])
 
     # (x,y)
-    wft = sum(s[4] for s in segments)
-    wfm = sum(s[5] for s in segments)
+    weight_total_f = sum(s[4] for s in segments)
+    weight_total_m = sum(s[5] for s in segments)
     w = 0.0
     for (kp0, kp1, com_f, com_m, w_f, w_m) in segments:
         p0 = world_pos[:, 3*kp0:3*kp0 + 3]
         p1 = world_pos[:, 3*kp1:3*kp1 + 3]
-        comarr += (p0 + (p1 - p0) * com_f) * w_f / wft  # TODO: ...
+        comarr += (p0 + (p1 - p0) * com_f) * w_f / weight_total_f
         w += w_f
 
     # calculate segment CoMs

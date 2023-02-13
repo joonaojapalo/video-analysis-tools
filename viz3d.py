@@ -20,12 +20,12 @@ skeleton = [
     ("RHip", "LHip"),
     ("LKnee", "LAnkle"),
     ("RKnee", "RAnkle"),
-    ("LAnkle", "LHeel"),
-    ("RAnkle", "RHeel"),
-    ("LHeel", "LBigToe"),
-    ("RHeel", "RBigToe"),
-    ("LAnkle", "LBigToe"),
-    ("RAnkle", "RBigToe"),
+    #("LAnkle", "LHeel"),
+    #("RAnkle", "RHeel"),
+    #("LHeel", "LBigToe"),
+    #("RHeel", "RBigToe"),
+    #("LAnkle", "LBigToe"),
+    #("RAnkle", "RBigToe"),
 ]
 
 

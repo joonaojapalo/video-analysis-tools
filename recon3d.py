@@ -5,6 +5,7 @@ import glob
 import pprint
 from collections import defaultdict
 from pathlib import Path
+import itertools
 
 import numpy as np
 import scipy.signal
@@ -196,29 +197,34 @@ def drop_low_scores(keypoint_arr, visibility_threshold):
     return keypoint_arr
 
 
-def filter_data(poi_sequence, fps, visibility_threshold=0.5):
-    # build keypoint array
-    keypoint_arr = seq_as_array(poi_sequence)
-    keypoint_arr = drop_low_scores(keypoint_arr, visibility_threshold)
-
+def filter_data_median(arr, median_filter_window=9, dimensions=2):
+    """Filter (x,y) dimensions in array dimension-wise.
+    """
     # TODO: kNN imputer (sklearn)
     # TODO: regression imputation... (GPR?)
-    # median filter (each x,y column)
 
-    # init butterworth
-    b, a = scipy.signal.butter(4, 16, 'low', fs=fps)
-    median_filter_window = 15
-    for k in range(2):
+    for k in range(dimensions):
         for i in range(k, 78, 3):
-            mf = nanmedianfilt(keypoint_arr[:, i], median_filter_window)
-#            mf[np.isnan(mf)] = 0
-            bf = scipy.signal.filtfilt(b, a, mf)
-            keypoint_arr[:, i] = bf
+            mf = nanmedianfilt(arr[:, i], median_filter_window)
+            arr[:, i] = mf
             # kf.kalmanfilt1d(keypoint_arr[:, i],
             #                time_step=0.2,
             #                mesurement_noise=2.0)
-            #scipy.signal.medfilt(keypoint_arr[:, i], [median_filter_window])
-    return keypoint_arr
+    return arr
+
+
+def filter_data_butterworth4(arr, freq, fps, dimensions=3):
+    """Butterworth filter array dimension-wise.
+    """
+    # init butterworth
+    b, a = scipy.signal.butter(4, freq, 'low', fs=fps)
+    for k in range(dimensions):
+        for i in range(k, 78, 3):
+            # pick only non-nan values to filter
+            finite_idx = np.isfinite(arr[:, i])
+            arr[finite_idx, i] = scipy.signal.filtfilt(
+                b, a, arr[finite_idx, i])
+    return arr
 
 
 def calib_by_cam_ids(camera_calibration, cam_ids):
@@ -229,7 +235,7 @@ def is_valid(point):
     return not np.isnan(point).any()
 
 
-def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2):
+def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_combinations=True):
     """Map set of 2D posedata coordinates to 3D world coordinates.
 
     Parameters:
@@ -251,7 +257,7 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2):
 
     for frame in range(n_frames_ref):
         # reconstruct person
-        print(".", end="")
+        print(".", end="", flush=True)
         for kp in range(26):
             # select only cameras that have observation
             point = []
@@ -271,12 +277,30 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2):
             if n_cams < n_cams_min:
                 continue
 
-            if is_valid(point):
+            # reconstruct all camera pair combinations
+            if use_combinations:
+                pair_pos = []
+                for pair in itertools.combinations(range(n_cams), n_cams_min):
+                    # compose calibration matrix array
+                    #Ls = calib_by_cam_ids(camera_calibration, point_cam_ids)
+                    Ls = calib_by_cam_ids(
+                        camera_calibration, np.take(point_cam_ids, pair))
+                    pair_point = [point[p] for p in pair]
+
+                    # reconstruct point
+                    pos = dlt_reconstruct(3, len(Ls), Ls, pair_point)
+                    pair_pos.append(pos)
+
+                # median of cam pair reconstructions
+                world_pos[frame, kp*3:kp*3+3] = np.median(pair_pos, 0)
+            else:
                 # compose calibration matrix array
                 Ls = calib_by_cam_ids(camera_calibration, point_cam_ids)
 
                 # reconstruct point
                 pos = dlt_reconstruct(3, len(Ls), Ls, point)
+
+                # median of cam pair reconstructions
                 world_pos[frame, kp*3:kp*3+3] = pos
     print()
     return world_pos
@@ -408,6 +432,34 @@ if __name__ == "__main__":
     parser.add_argument("input_directory",
                         metavar="INPUT",
                         help="Input directory for input data files.")
+    parser.add_argument("--visibility",
+                        type=float,
+                        default=0.5,
+                        help="Pose detection score visibility threshold 0.0-1.0 (higher is strictier). Default: 0.5")
+    parser.add_argument("--median",
+                        type=int,
+                        default=9,
+                        help="Median filter (pre reconstruction) window length. Default: 9")
+    parser.add_argument("--median-post",
+                        dest="median_post",
+                        type=int,
+                        default=3,
+                        help="Median filter (post reconstruction) window length. Default: 3")
+    parser.add_argument("--freq",
+                        type=float,
+                        default=16,
+                        help="Butterworth (4th order) filter frequency (post reconstruction). Default: 16.0")
+    parser.add_argument("--min-cams",
+                        dest="n_cams_min",
+                        type=int,
+                        default=2,
+                        help="Minimum number of cameras to use for reconstructing each joint position. Default: 2")
+    parser.add_argument("--cam-pair",
+                        dest="cam_combinations",
+                        action="store_true",
+                        default=False,
+                        help="In reconstruction, use median point indivudual reconstruction from camera pairs that the point is visible.")
+
     args = parser.parse_args()
 
     # read directory structure
@@ -470,7 +522,11 @@ if __name__ == "__main__":
 
             # select only data for person of interest
             poi_sequence = select_sequence_idx(sequence, poi)
-            keypoint_arr = filter_data(poi_sequence, fps)
+
+            # build keypoint array
+            keypoint_arr = seq_as_array(poi_sequence)
+            keypoint_arr = drop_low_scores(keypoint_arr, args.visibility)
+            keypoint_arr = filter_data_median(keypoint_arr, args.median)
 
             # add to posedata
             posedata[cam_id] = keypoint_arr
@@ -493,7 +549,19 @@ if __name__ == "__main__":
 
         # make 3D recostructions
         world_pos = reconstruct_3d(
-            posedata, cam_ids, camera_calibration, n_cams_min=2)
+            posedata, cam_ids, camera_calibration,
+            n_cams_min=args.n_cams_min,
+            use_combinations=args.cam_combinations)
+
+        # post median filter
+        filter_data_median(world_pos, args.median_post, dimensions=3)
+
+        # post Butterworth
+        if args.freq > 0:
+            world_pos = filter_data_butterworth4(
+                world_pos, args.freq, fps, dimensions=3)
+        else:
+            print("Skipping Butterworth filter...")
 
         # write to disk
         output_dir = os.path.join(camset.subject_dir, "Output")

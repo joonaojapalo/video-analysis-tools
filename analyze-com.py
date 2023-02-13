@@ -19,8 +19,18 @@ GRAY_DARK = (32, 32, 32)
 
 
 def com_velocity(c, fps=240):
-    # np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2+np.diff(c[:, 2])**2) * fps
-    return np.diff(c[:, 0]) * fps
+    # x-y plane
+    return np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2) * fps
+
+    # x-y-z plane
+    #return np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2+np.diff(c[:, 2])**2) * fps
+
+    # x-plane
+    #return np.diff(c[:, 0]) * fps
+
+def nan_partition(x):
+    ns = np.isnan(x)
+    d = np.diff(ns)
 
 
 def plot_v(v, fps=240, title="CoM"):
@@ -84,7 +94,7 @@ def render_output(input_video, outfile, v_arr):
     curve_y /= np.max(curve_y)
     curve_y *= CURVE_BOTTOM - 10
     curve_points = np.array([(x + 1, int(CURVE_BOTTOM - y))
-                             for (x, y) in enumerate(curve_y)])
+                             for (x, y) in enumerate(curve_y) if np.isfinite(y)])
 
     # open output video file
     output = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
@@ -128,23 +138,27 @@ def render_output(input_video, outfile, v_arr):
 
 
 def get_input_files(index_dir_path, throw_id):
-    d = index_dir_path.joinpath("Output")
-    coms = d.glob(f"*_{throw_id}-com.npy")
+    output_dir = index_dir_path.joinpath("Output")
+    print("*** get input files")
+    coms = list((f"*_{throw_id}-com.npy"))
     if len(coms) == 0:
-        raise Exception("No CoM trajectory file found in: %s" % str(d))
+        raise Exception("No CoM trajectory file found in: %s" %
+                        str(output_dir))
     if len(coms) > 1:
         raise Exception(
-            "CoM trajectories for multiple subjects found in: %s" % str(d))
+            "CoM trajectories for multiple subjects found in: %s" % str(output_dir))
+    return coms
 
 
-def process_files(input_dir):
+def process_files(input_dir, cam_id="oe"):
     index_file_paths = indexfiles.glob_index_files(input_dir)
     xlsx_cols = [
         "Throw",
-        "XOTOFrame",
-        "RLTDFrame",
-        "BLTDFrame",
-        "ReleaseFrame"
+        "Camera",
+        # "XOTOFrame",
+        # "RLTDFrame",
+        # "BLTDFrame",
+        # "ReleaseFrame"
     ]
 
     for indexfile_path in index_file_paths:
@@ -159,31 +173,53 @@ def process_files(input_dir):
                   indexfile_path)
             continue
 
-        indexfile_path
         p = Path(indexfile_path)
-        print(rows)
-        for row in rows:
-            input_video, input_com = get_input_files(p.parent, row[0])
-        return
-        # compute velocity (3D)
-        input_com = "S1_02-com.npy"
-        v = compute_velocity(input_com)
+        subject_id = p.parent.name
+        output_dir = p.parent.joinpath("Output")
 
-        # render on video
-        input_video = "2023-01-18\\Subjects\\S1\\Sync\\S1_03_oe-sync.mp4"
-        outfile = "analysis-test.mp4"
-        render_output(input_video, outfile, v)
+        for row in rows:
+            throw_id, camera_id = row
+
+            if camera_id != cam_id:
+                continue
+
+            com_fname = f"{subject_id}_{throw_id}-com.npy"
+            input_com = output_dir.joinpath(com_fname)
+            if not input_com.is_file():
+                print(
+                    f"Skipping... No CoM file found for: {subject_id}_{throw_id}")
+                continue
+
+#            input_video, input_com = get_input_files(p.parent, row[0])
+            video_fname = f"{subject_id}_{throw_id}_{cam_id}-sync.mp4"
+            input_video = p.parent.joinpath("Sync", video_fname)
+
+            if not input_com.is_file():
+                print(
+                    f"Skipping... No video file (camera={cam_id}) found for: {subject_id}_{throw_id}")
+                continue
+
+            # compute velocity (3D)
+            v_arr = compute_velocity(input_com)
+            print(v_arr)
+
+            # render on video
+            outfile = output_dir.joinpath("{subject_id}_{throw_id}-CoM-velocity.mp4")
+            print("Processing {input_video} & {input_com} --> {outfile}")
+#            render_output(str(input_video), str(outfile), v_arr)
+            plot_v(v_arr, fps=240, title=f"CoM: {subject_id} - throw: {throw_id}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze-com")
-    parser.add_argument("input_video",
+    parser.add_argument("input_dir",
                         help="Input directory file, eg. 2023-02-16/")
-    parser.add_argument("input_com",
-                        help="Input directory file, eg. 2023-02-16/")
+#    parser.add_argument("input_com",
+#                        help="Input directory file, eg. 2023-02-16/")
     args = parser.parse_args()
 
-#    process_files(args.input_dir)
+    process_files(args.input_dir)
+    sys.exit(0)
 
     outfile = "analysis-test.mp4"
     input_com = args.input_com

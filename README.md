@@ -67,6 +67,20 @@ viz3d .\2023-01-13\Subjects\S1\Output\S1_01.npy --com .\2023-01-13\Subjects\S1\O
 viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
 ```
 
+## Reconstruction parameters
+
+```sh
+# median filter window length (for pose data)
+recon3d --com 2023-01-15 --median 16
+
+# LP filter cut-off frequency
+recon3d --com 2023-01-15 --freq 50
+
+# minimum number of required cameras for 3D reconstruction
+recon3d --com 2023-01-15 --min-cams 3
+```
+
+
 ## Configuration
 
 See docs for ffmpeg-sync.
