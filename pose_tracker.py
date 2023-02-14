@@ -20,16 +20,21 @@ def build_boxes(idxs, obj_lookup):
         pose = obj_lookup[idx]
         box = box_from_keypoints(pose["keypoints"])
         boxes.append(box)
-        ilookup[i] = idx    
+        ilookup[i] = idx
     return boxes, ilookup
 
 
-def get_pose_idx_events(sequence, return_stat=False):
+def parse_frame_number(image_id):
+    return int(image_id.replace(".jpg", ""))
+
+
+def get_pose_idx_events(sequence, return_stat=False, verbose=False):
     """Get index change events.
 
     Parameters:
     sequence (list)     : Alphapose sequence.
     return_stat (bool)  : Should return statistics as additional value
+    verbose (book)      : Verbose logging
 
     Returns:
     (index_matches, index_duplicates, [stats])
@@ -41,6 +46,9 @@ def get_pose_idx_events(sequence, return_stat=False):
     last_frame_objs = {}
     last_frame_dropped = set()
 
+    # gap tracking via "wanted list"
+    wanted_idx = {}  # { frame: [ idxs ]}
+
     index_changes = []
     index_duplicates = []
 
@@ -49,6 +57,7 @@ def get_pose_idx_events(sequence, return_stat=False):
         frame_idxs = set(pose["idx"] for pose in frame["objs"])
         frame_objs = dict((pose["idx"], pose) for pose in frame["objs"])
         image_id = frame["image_id"]
+        frame_num = parse_frame_num(image_id)
 
         if last_frame_idxs:
             # find new and dropped pose indices
@@ -63,17 +72,24 @@ def get_pose_idx_events(sequence, return_stat=False):
 
             if appear_idx:
                 # compute bbox overlaps between dropped and appeared poses
-                appear_boxes, appear_ilookup = build_boxes(appear_idx, frame_objs)
+                appear_boxes, appear_ilookup = build_boxes(
+                    appear_idx, frame_objs)
 
             if dropped_idx:
                 # build last frame obj bbox list
-                dropped_boxes, drop_ilookup = build_boxes(dropped_idx, last_frame_objs)
+                dropped_boxes, drop_ilookup = build_boxes(
+                    dropped_idx, last_frame_objs)
+
+                # add to wanted list
+                wanted_idx[frame_num] = (
+                    dropped_idx, dropped_boxes, drop_ilookup)
 
             if appear_idx:
                 # case 1: duplicate
                 # build boxes for existing objects
                 current_idxs = frame_idxs.difference(appear_idx)
-                current_boxes, current_ilookup = build_boxes(current_idxs, frame_objs)
+                current_boxes, current_ilookup = build_boxes(
+                    current_idxs, frame_objs)
                 overlaps = intersect(current_boxes, appear_boxes)
 
                 # find duplicate
@@ -99,9 +115,9 @@ def get_pose_idx_events(sequence, return_stat=False):
             if last_frame_dropped:
                 # case "gap"
                 # TODO: ...
-                prev_boxes, prev_ilookup = build_boxes(last_frame_idxs, last_frame_objs)
+                prev_boxes, prev_ilookup = build_boxes(
+                    last_frame_idxs, last_frame_objs)
 #                index_changes.append([image_id, i1, i0])
-
 
             if dropped_idx and appear_idx:
                 # case 2: pose index switch from A to B
@@ -122,7 +138,7 @@ def get_pose_idx_events(sequence, return_stat=False):
                         if ratio > BBOX_OVERLAP_THRESHOLD:
                             index_changes.append([image_id, i1, i0])
                             stat["index_change"] += 1
-                            #print("  (%s) overlap: %i -> %i : %.2f" %
+                            # print("  (%s) overlap: %i -> %i : %.2f" %
                             #        (image_id, i0, i1, ratio))
             last_frame_dropped = dropped_idx
         else:
@@ -130,6 +146,11 @@ def get_pose_idx_events(sequence, return_stat=False):
             if frame["image_id"] != "0.jpg":
                 print("No last frame idx for", frame["image_id"])
             pass
+
+        # clean "wanted" list (> 3 frames old)
+        stale_frames = [f for f in wanted_idx.keys() if frame_num - f > 3]
+        for stale_frame in stale_frames:
+            del wanted_idx[stale_frame]
 
         # update indices
         last_frame_idxs = frame_idxs
@@ -190,8 +211,8 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
         interval = [start_frame, last_frame + 1, orig_id, int_vidx]
         intervals[orig_id].append(interval)
         #print("Close remaining open int.", interval, "last frame:", last_frame)
-    #print("Intervals:")
-    #pprint.pprint(intervals)
+    # print("Intervals:")
+    # pprint.pprint(intervals)
 
     dupes_by_frame = defaultdict(list)
     for image_id, idx in duplicates:
@@ -204,7 +225,8 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
         # remove duplicates
         frame_dupe_indices = dupes_by_frame.get(frame["image_id"])
         if frame_dupe_indices:
-            frame["objs"] = [ obj for obj in frame["objs"] if obj["idx"] not in frame_dupe_indices]
+            frame["objs"] = [obj for obj in frame["objs"]
+                             if obj["idx"] not in frame_dupe_indices]
 
         for obj in frame["objs"]:
             idx = obj["idx"]
@@ -213,10 +235,10 @@ def remap_idx_inplace(sequence, pose_idx_changes, duplicates, virtual_idx_init=1
                 continue
 
             for f0, f1, orig_idx, vidx in intervals[idx]:
-#                print("apply interval (%i) %i -> %i, [%i..%i]" % (frame_num, vidx, orig_idx, f0, f1,))
+                #                print("apply interval (%i) %i -> %i, [%i..%i]" % (frame_num, vidx, orig_idx, f0, f1,))
                 # for each idx: belongs to interval  { orig_idx: [frame0, frame1, vidx] }
                 if within(f0, f1, frame_num):
-#                    print("  ... done")
+                    #                    print("  ... done")
                     #                    print("frame %i : remap idx %i -> %i" % (frame_num, idx, vidx))
                     # remap idx
                     obj["idx"] = vidx
@@ -232,7 +254,7 @@ if __name__ == "__main__":
     from ap_loader import load_alphapose_json
     import argparse
 
-    parser = argparse.ArgumentParser("poi_detector.py")
+    parser = argparse.ArgumentParser("pose_tracker.py")
     parser.add_argument("input_json")
     args = parser.parse_args()
 
@@ -241,7 +263,8 @@ if __name__ == "__main__":
 
     sequence = load_alphapose_json(args.input_json)
 
-    changes, duplicates, stat = get_pose_idx_events(sequence, return_stat=True)
+    changes, duplicates, stat = get_pose_idx_events(sequence, return_stat=True,
+                                                    verbose=True)
     pprint.pprint(stat)
     print("Index changes (img, to, from):")
     pprint.pprint(changes)
