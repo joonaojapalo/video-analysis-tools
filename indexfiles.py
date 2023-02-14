@@ -7,7 +7,6 @@ from ffmpeg_sync.index_xlsx import validate_xlsx
 def glob_index_files(basepath):
     index_file_pattern = os.path.join(basepath, "**", "*_indices.xlsx")
     glob_paths = glob.glob(index_file_pattern, recursive=True)
-    print(index_file_pattern, glob_paths)
 
     if glob_paths:
         print("\nValidating index files:")
@@ -25,4 +24,5 @@ def glob_index_files(basepath):
                     pass
                 else:
                     print("WARNING:", msg)
+    print()
     return paths
