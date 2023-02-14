@@ -78,6 +78,13 @@ recon3d --com 2023-01-15 --freq 50
 
 # minimum number of required cameras for 3D reconstruction
 recon3d --com 2023-01-15 --min-cams 3
+
+# exclude body segments from CoM computation
+recon3d --com 2023-01-15 --com-exclude hands
+recon3d --com 2023-01-15 --com-exclude legs
+recon3d --com 2023-01-15 --com-exclude forearms
+recon3d --com 2023-01-15 --com-exclude forearms
+
 ```
 
 
