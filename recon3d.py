@@ -217,7 +217,7 @@ def filter_data_butterworth4(arr, freq, fps, dimensions=3):
     """Butterworth filter array dimension-wise.
     """
     # init butterworth
-    b, a = scipy.signal.butter(4, freq, 'low', fs=fps)
+    b, a = scipy.signal.butter(4, freq, 'lowpass', fs=fps)
     for k in range(dimensions):
         for i in range(k, 78, 3):
             # pick only non-nan values to filter
@@ -255,6 +255,7 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
     world_pos = np.empty([n_frames_ref, 3*26])
     world_pos[:] = np.NaN
 
+    print("Reconstructing:")
     for frame in range(n_frames_ref):
         # reconstruct person
         print(".", end="", flush=True)
@@ -302,6 +303,7 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
 
                 # median of cam pair reconstructions
                 world_pos[frame, kp*3:kp*3+3] = pos
+    print()
     print()
     return world_pos
 
@@ -404,6 +406,19 @@ def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
     return posedata
 
 
+def parse_com_exclude_segments(exclude):
+    if not exclude:
+        return []
+
+    NAMES = ["hands", "legs", "forearms", "shanks"]
+    ex = exclude.split(",")
+
+    for e in ex:
+        if e not in NAMES:
+            raise ValueError("Invalid CoM exclude segment: %s" % e)
+    return ex
+
+
 usage = """
   python recon3d.py ./2013-01-13
 
@@ -459,8 +474,15 @@ if __name__ == "__main__":
                         action="store_true",
                         default=False,
                         help="In reconstruction, use median point indivudual reconstruction from camera pairs that the point is visible.")
+    parser.add_argument("--com-exclude",
+                        dest="com_exclude",
+                        default="",
+                        help="Comma-separate list of segments to exclude from CoM computation. Available values: hands, legs, forearms, shanks.")
 
     args = parser.parse_args()
+
+    # parse & validate com_exclude 
+    com_exclude = parse_com_exclude_segments(args.com_exclude)
 
     # read directory structure
     datasource = DataSource(args.input_directory, args.subject, args.trial)
@@ -554,7 +576,8 @@ if __name__ == "__main__":
             use_combinations=args.cam_combinations)
 
         # post median filter
-        filter_data_median(world_pos, args.median_post, dimensions=3)
+        if args.median_post > 1:
+            filter_data_median(world_pos, args.median_post, dimensions=3)
 
         # post Butterworth
         if args.freq > 0:
@@ -582,7 +605,8 @@ if __name__ == "__main__":
         outputfiles.append(f"{output_path}.npy")
 
         if args.com:
-            com_trajectory = com.compute(world_pos)
+            print("Computing CoM...")
+            com_trajectory = com.compute(world_pos, com_exclude)
             com_output_path = os.path.join(
                 output_dir, f"{output_filename}-com")
             np.save(com_output_path, com_trajectory)
