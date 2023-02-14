@@ -581,8 +581,13 @@ if __name__ == "__main__":
 
         # post Butterworth
         if args.freq > 0:
-            world_pos = filter_data_butterworth4(
-                world_pos, args.freq, fps, dimensions=3)
+            try:
+                world_pos = filter_data_butterworth4(
+                    world_pos, args.freq, fps, dimensions=3)
+            except ValueError as err:
+                print("[butterworth-lowpass] ERROR:", err)
+                print("Skipping to next camera set...")
+                continue
         else:
             print("Skipping Butterworth filter...")
 

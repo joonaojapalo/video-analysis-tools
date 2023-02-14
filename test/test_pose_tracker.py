@@ -70,7 +70,7 @@ class TestPoseTracker (unittest.TestCase):
             frame(3, [o(1, 8, 100)]),
         ]
         evs, duplicates = pose_tracker.get_pose_idx_events(sequence)
-        self.assertEqual(len(evs), 2)
+        self.assertEqual(len(evs), 2, evs)
         self.assertEqual(len(duplicates), 0)
 
     def test_idx_switch03(self):
@@ -159,7 +159,7 @@ class TestPoseTracker (unittest.TestCase):
         # changes
         duplicates = [['2.jpg', 5]]
         pose_tracker.remap_idx_inplace(sequence, [], duplicates)
-        pprint.pprint(sequence)
+        #pprint.pprint(sequence)
         expected_sequence = [
             frame(1, [o(1, 100, 100)]),
             frame(2, [o(1, 101, 100)]),
