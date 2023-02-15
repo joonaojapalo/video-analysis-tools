@@ -2,3 +2,4 @@ numpy
 openpyxls
 yaml
 imageio-ffmpeg
+matplotlib
