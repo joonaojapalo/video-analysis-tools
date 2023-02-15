@@ -13,7 +13,7 @@ fn = sys.argv[1] if len(
     sys.argv) > 1 else "..\\javelin-data\\2023-01-18\Subjects\S1\Pose\S1_08_ot-sync\\alphapose-results.json"
 s = load_alphapose_json(fn)
 h = copy.deepcopy(s)
-h = harmonize_indices(h)
+h, pose_idx_events = harmonize_indices(h)
 print("Loaded", fn)
 
 
@@ -30,6 +30,7 @@ colors = ["red", "blue", "green", "orange", "cyan", "pink"]
 def plot_frame(sequence, f0, f1=None):
     xlim([0, 1920])
     ylim([1080, 0])
+    print("Plotting frames",f0,f1)
     for frame in range(f0, f1 if f1 else f0+1):
         if len(sequence) < frame:
             continue
