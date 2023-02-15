@@ -1,7 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
-import re
+import os
 
 import numpy as np
 import cv2
@@ -90,30 +90,12 @@ def plot_v(v, fps=240, title="CoM"):
     plt.show()
 
 
-def overlay_transparent(bg_img, img_to_overlay_t):
-    """See: https://stackoverflow.com/questions/56356857/how-to-correctly-overlay-two-images-with-opencv
-    """
-    # Extract the alpha mask of the RGBA image, convert to RGB
-    b, g, r, a = cv2.split(img_to_overlay_t)
-    overlay_color = cv2.merge((b, g, r))
-
-    mask = cv2.medianBlur(a, 5)
-
-    # Black-out the area behind the logo in our original ROI
-    img1_bg = cv2.bitwise_and(
-        bg_img.copy(), bg_img.copy(), mask=cv2.bitwise_not(mask))
-
-    # Mask out the logo from the logo image.
-    img2_fg = cv2.bitwise_and(overlay_color, overlay_color, mask=mask)
-
-    # Update the original image with our new ROI
-    bg_img = cv2.add(img1_bg, img2_fg)
-
-    return bg_img
-
-
-def render_logo(image):
-    a = cv2.imread("a.jpeg")
+def read_logo():
+    tkpath = Path(os.environ.get("JAVELIN_TOOLKIT_PATH"))
+    logo = cv2.imread(str(tkpath.joinpath("kihu-logo-white.png")))
+    alpha_channel = logo[:, :, 3]
+    mask = alpha_channel
+    return logo, mask
 
 
 def get_scale(v_arr):
@@ -143,29 +125,12 @@ def compute_grid_lines(v_arr, CURVE_BOTTOM, CURVE_HEIGHT, width):
     return h_grid_lines, scale, scale_labels
 
 
-def render_output(input_video, outfile, v_arr):
-    # read input
-    input_stream = cv2.VideoCapture(input_video)
-
-    # get input video properties
-    width = int(input_stream.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(input_stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(input_stream.get(cv2.CAP_PROP_FPS))
-    # frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
+def get_polyline(v_arr, width, CURVE_HEIGHT, CURVE_BOTTOM):
+    # get curve value bounds
+    ma, mi, hh, ll = get_scale(v_arr)
 
     # build list of non-nan curve parts
     ys, xs = nan_partition(v_arr)
-
-    CURVE_BOTTOM = 400
-    CURVE_TOP = 50
-    CURVE_HEIGHT = CURVE_BOTTOM - CURVE_TOP
-
-    # get scale grid lines
-    h_grid_lines, scale, scale_labels = compute_grid_lines(
-        v_arr, CURVE_BOTTOM, CURVE_HEIGHT, width)
-
-    # get curve value bounds
-    ma, mi, hh, ll = get_scale(v_arr)
 
     curves = []
     for xa, ya in zip(xs, ys):
@@ -185,6 +150,30 @@ def render_output(input_video, outfile, v_arr):
         curve_points = np.array([(x + 1 + orig_x, int(CURVE_BOTTOM - y))
                                  for (x, y) in enumerate(curve_y)], dtype=int)
         curves.append(curve_points)
+
+    return curves
+
+
+def render_output(input_video, outfile, v_arr):
+    # read input
+    input_stream = cv2.VideoCapture(input_video)
+
+    # get input video properties
+    width = int(input_stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(input_stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(input_stream.get(cv2.CAP_PROP_FPS))
+    # frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    CURVE_BOTTOM = 400
+    CURVE_TOP = 50
+    CURVE_HEIGHT = CURVE_BOTTOM - CURVE_TOP
+
+    # get scale grid lines
+    h_grid_lines, scale, scale_labels = compute_grid_lines(
+        v_arr, CURVE_BOTTOM, CURVE_HEIGHT, width)
+
+    # build opencv polyline from com velocity array
+    polyline = get_polyline(v_arr, width, CURVE_HEIGHT, CURVE_BOTTOM)
 
     # open output video file
     output = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
@@ -208,12 +197,14 @@ def render_output(input_video, outfile, v_arr):
                           GRAY_DARK_ALPHA, 2, cv2.LINE_AA)
 
             # velocity curve
-            cv2.polylines(image, curves, False, YELLOW, 2, cv2.LINE_AA)
+            cv2.polylines(image, polyline, False, YELLOW, 2, cv2.LINE_AA)
 
             # vertical marker
-            hx = 1 + (width - 1) * (1 + num_frame) // Nv
-            cv2.line(image, [hx, 10], [hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
-            cv2.line(image, [hx, 10], [hx, CURVE_BOTTOM], WHITE, 2)
+            N = v_arr.shape[0]
+            hx = 1 + (width - 1) * (1 + num_frame) // N
+            cv2.line(image, [hx, CURVE_TOP], [
+                     hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
+            cv2.line(image, [hx, CURVE_TOP], [hx, CURVE_BOTTOM], WHITE, 2)
 
             # gridline labels
             for scale_y, label in zip(scale_labels, scale):
@@ -264,11 +255,19 @@ def get_input_files(index_dir_path, throw_id):
     return coms
 
 
-def process_files(input_dir, use_cam_id="oe", use_subject_id=None, use_throw_id=None, capture_fps=240, plot_only=False):
+def process_files(input_dir,
+                  use_cam_ids=["oe"],
+                  use_subject_id=None,
+                  use_throw_id=None,
+                  analysis_fps=240,
+                  plot_only=False,
+                  window_len=0.05
+                  ):
     index_file_paths = indexfiles.glob_index_files(input_dir)
     xlsx_cols = [
         "Throw",
         "Camera",
+        "CameraFPS",
         # "XOTOFrame",
         # "RLTDFrame",
         # "BLTDFrame",
@@ -291,49 +290,60 @@ def process_files(input_dir, use_cam_id="oe", use_subject_id=None, use_throw_id=
         subject_id = p.parent.name
         output_dir = p.parent.joinpath("Output")
 
-        for row in rows:
-            throw_id, camera_id = row
+        for use_cam_id in use_cam_ids:
+            for row in rows:
+                throw_id, camera_id, clip_fps = row
 
-            if camera_id != use_cam_id:
-                continue
+                if camera_id != use_cam_id:
+                    continue
 
-            if use_subject_id is not None and use_subject_id != subject_id:
-                continue
+                if use_subject_id is not None and use_subject_id != subject_id:
+                    continue
 
-            if use_throw_id is not None and use_throw_id != throw_id:
-                continue
+                if use_throw_id is not None and use_throw_id != throw_id:
+                    continue
 
-            com_fname = f"{subject_id}_{throw_id}-com.npy"
-            input_com = output_dir.joinpath(com_fname)
-            if not input_com.is_file():
-                print(
-                    f"Skipping... No CoM file found for: {subject_id}_{throw_id}")
-                continue
+                if clip_fps != analysis_fps:
+                    print("Rendering video with capture fps (%i) different from analysis fps (%i) not supported" % (
+                        clip_fps, analysis_fps))
+                    continue
 
-#            input_video, input_com = get_input_files(p.parent, row[0])
-            video_fname = f"{subject_id}_{throw_id}_{use_cam_id}-sync.mp4"
-            input_video = p.parent.joinpath("Sync", video_fname)
+                com_fname = f"{subject_id}_{throw_id}-com.npy"
+                input_com = output_dir.joinpath(com_fname)
+                if not input_com.is_file():
+                    print(
+                        f"Skipping... No CoM file found for: {subject_id}_{throw_id}")
+                    continue
 
-            if not input_com.is_file():
-                print(
-                    f"Skipping... No video file (camera={use_cam_id}) found for: {subject_id}_{throw_id}")
-                continue
+    #            input_video, input_com = get_input_files(p.parent, row[0])
+                video_fname = f"{subject_id}_{throw_id}_{camera_id}-sync.mp4"
+                input_video = p.parent.joinpath("Sync", video_fname)
 
-            # compute velocity (3D)
-            v_arr = compute_velocity(input_com, capture_fps)
+                if not input_com.is_file():
+                    print(
+                        f"Skipping... No video file (camera={camera_id}) found for: {subject_id}_{throw_id}")
+                    continue
 
-            if plot_only:
-                plot_v(v_arr, fps=240,
-                       title=f"CoM: {subject_id} - throw: {throw_id}")
-            else:
-                # render on video
-                outfile_name = f"{subject_id}_{throw_id}-CoM-velocity.mp4"
-                outfile = output_dir.joinpath(outfile_name)
-                print(f"Creating video:")
-                print(f"  - input (video): {input_video}")
-                print(f"  - input (CoM): {input_com}")
-                print(f"  - output: {outfile}")
-                render_output(str(input_video), str(outfile), v_arr)
+                # compute velocity (3D)
+                v_arr = compute_velocity(input_com, analysis_fps,
+                                         method="window",
+                                         window=window_len)
+
+                if plot_only:
+                    plot_v(v_arr, fps=analysis_fps,
+                           title=f"CoM: {subject_id} - throw: {throw_id}")
+                else:
+                    # render on video
+                    cam_file_id = ""
+                    if len(use_cam_ids) > 0:
+                        cam_file_id = f"_{camera_id}"
+                    outfile_name = f"{subject_id}_{throw_id}{cam_file_id}-CoM-velocity.mp4"
+                    outfile = output_dir.joinpath(outfile_name)
+                    print(f"Creating video:")
+                    print(f"  - input (video): {input_video}")
+                    print(f"  - input (CoM): {input_com}")
+                    print(f"  - output: {outfile}")
+                    render_output(str(input_video), str(outfile), v_arr)
 
 
 if __name__ == "__main__":
@@ -347,7 +357,7 @@ if __name__ == "__main__":
                         default=None,
                         help="Process only trial with id, eg. 01")
     parser.add_argument("--cam", "-C",
-                        default=None,
+                        default="oe",
                         help="Use video from camera, eg. 'oe'")
     parser.add_argument("--capture-fps",
                         dest="capture_fps",
@@ -360,5 +370,8 @@ if __name__ == "__main__":
                         help="Show curve plot only.")
     args = parser.parse_args()
 
+    cam_ids = args.cam.split(",")
     process_files(args.input_dir, use_subject_id=args.subject,
-                  use_throw_id=args.trial, capture_fps=args.capture_fps)
+                  use_throw_id=args.trial,
+                  analysis_fps=args.capture_fps,
+                  use_cam_ids=cam_ids)
