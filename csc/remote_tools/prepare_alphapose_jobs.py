@@ -71,7 +71,6 @@ def build_alphapose_command(path, output_basepath, input_basepath, alphapose_pat
         cmd = [
             "(",
             f"cd {alphapose_path.absolute()};",
-            "pwd;"
             "python3", str(alphapose_prog),
             "--cfg", str(alphapose_config),
             "--checkpoint", str(alphapose_model),
