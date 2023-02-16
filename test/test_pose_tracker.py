@@ -259,3 +259,17 @@ class TestPoseTracker (unittest.TestCase):
         self.assertEqual(len(duplicates), 0)
         self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0], ['3.jpg', 2, 1])
+
+    def test_empty_frames(self):
+        sequence = [
+            frame(0, []),
+            frame(1, []),
+            frame(2, []),
+            frame(3, [o(1, 6, 100)]),
+            frame(4, [o(1, 6.5, 100)]),
+            frame(5, [o(1, 7, 100)]),
+            frame(6, [o(1, 8, 100)]),
+        ]
+        changes, duplicates = pose_tracker.get_pose_idx_events(sequence)
+        self.assertEqual(len(duplicates), 0)
+        self.assertEqual(len(changes), 0)
