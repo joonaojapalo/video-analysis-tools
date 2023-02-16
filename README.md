@@ -28,7 +28,7 @@ run-alphapose 2023-02-15\
 
 # start remote job
 ssh user@host.com
-./start_alphapose_batch.sh <Local JOBID> # replace <Local JOBID> from the previous phase
+./start_alphapose_batch.sh 2023-02-15_01 # replace "2023-02-15_01" with the Local JOBID output by run-alphapose
 # (write down sbatch job id)
 exit
 
