@@ -154,7 +154,7 @@ def get_polyline(v_arr, width, CURVE_HEIGHT, CURVE_BOTTOM):
     return curves
 
 
-def render_output(input_video, outfile, v_arr):
+def render_output(input_video, outfile, v_arr, trim_start=0):
     # read input
     input_stream = cv2.VideoCapture(input_video)
 
@@ -189,50 +189,49 @@ def render_output(input_video, outfile, v_arr):
         if not ret:
             break
 
-        if num_frame > 1:
-            frame_v = v_arr[num_frame - 1]
+        frame_v = v_arr[num_frame]
 
-            # gridlines
-            cv2.polylines(image, h_grid_lines, False,
-                          GRAY_DARK_ALPHA, 2, cv2.LINE_AA)
+        # gridlines
+        cv2.polylines(image, h_grid_lines, False,
+                        GRAY_DARK_ALPHA, 2, cv2.LINE_AA)
 
-            # velocity curve
-            cv2.polylines(image, polyline, False, YELLOW, 2, cv2.LINE_AA)
+        # velocity curve
+        cv2.polylines(image, polyline, False, YELLOW, 2, cv2.LINE_AA)
 
-            # vertical marker
-            N = v_arr.shape[0]
-            hx = 1 + (width - 1) * (1 + num_frame) // N
-            cv2.line(image, [hx, CURVE_TOP], [
-                     hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
-            cv2.line(image, [hx, CURVE_TOP], [hx, CURVE_BOTTOM], WHITE, 2)
+        # vertical marker
+        N = v_arr.shape[0]
+        hx = 1 + (width - 1) * (1 + num_frame) // N
+        cv2.line(image, [hx, CURVE_TOP], [
+                    hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
+        cv2.line(image, [hx, CURVE_TOP], [hx, CURVE_BOTTOM], WHITE, 2)
 
-            # gridline labels
-            for scale_y, label in zip(scale_labels, scale):
-                cv2.putText(image, str(label),
-                            (5, scale_y + 5),
-                            font,
-                            0.6, GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
-                cv2.putText(image, str(label),
-                            (5, scale_y + 5),
-                            font,
-                            0.6, WHITE, 1, cv2.LINE_AA)
+        # gridline labels
+        for scale_y, label in zip(scale_labels, scale):
+            cv2.putText(image, str(label),
+                        (5, scale_y + 5),
+                        font,
+                        0.6, GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
+            cv2.putText(image, str(label),
+                        (5, scale_y + 5),
+                        font,
+                        0.6, WHITE, 1, cv2.LINE_AA)
 
-            # velocity
-            text = "%.2f m/s" % frame_v
-            text_size = cv2.getTextSize(text, font, 1.2, 1)[0]
-            cv2.putText(image, text,
-                        (width - text_size[0] - 10,  text_size[1] + 10),
-                        font, 1.2, GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
-            cv2.putText(image, text,
-                        (width - text_size[0] - 10,  text_size[1] + 10),
-                        font, 1.2, WHITE, 1, cv2.LINE_AA)
+        # velocity
+        text = "%.2f m/s" % frame_v
+        text_size = cv2.getTextSize(text, font, 1.2, 1)[0]
+        cv2.putText(image, text,
+                    (width - text_size[0] - 10,  text_size[1] + 10),
+                    font, 1.2, GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
+        cv2.putText(image, text,
+                    (width - text_size[0] - 10,  text_size[1] + 10),
+                    font, 1.2, WHITE, 1, cv2.LINE_AA)
 
-            # title
-            text = "Velocity of athlete's center-of-mass:"
-            cv2.putText(image, text, (10, 25), font, 1.0,
-                        GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
-            cv2.putText(image, text, (10, 25), font,
-                        1.0, WHITE, 1, cv2.LINE_AA)
+        # title
+        text = "Velocity of athlete's center-of-mass:"
+        cv2.putText(image, text, (10, 25), font, 1.0,
+                    GRAY_DARK_ALPHA, 5, cv2.LINE_AA)
+        cv2.putText(image, text, (10, 25), font,
+                    1.0, WHITE, 1, cv2.LINE_AA)
 
         # write output
         output.write(image)
@@ -261,7 +260,9 @@ def process_files(input_dir,
                   use_throw_id=None,
                   analysis_fps=240,
                   plot_only=False,
-                  window_len=0.05
+                  window_len=0.05,
+                  trim_start=0,
+                  trim_end=0
                   ):
     index_file_paths = indexfiles.glob_index_files(input_dir)
     xlsx_cols = [
@@ -328,6 +329,11 @@ def process_files(input_dir,
                 v_arr = compute_velocity(input_com, analysis_fps,
                                          method="window",
                                          window=window_len)
+                if trim_start > 0:
+                    v_arr[:trim_start] = np.NaN
+
+                if trim_end > 0:
+                    v_arr[-trim_end:] = np.NaN
 
                 if plot_only:
                     plot_v(v_arr, fps=analysis_fps,
@@ -343,7 +349,7 @@ def process_files(input_dir,
                     print(f"  - input (video): {input_video}")
                     print(f"  - input (CoM): {input_com}")
                     print(f"  - output: {outfile}")
-                    render_output(str(input_video), str(outfile), v_arr)
+                    render_output(str(input_video), str(outfile), v_arr, trim_start=trim_start)
 
 
 if __name__ == "__main__":
@@ -368,10 +374,22 @@ if __name__ == "__main__":
                         default=False,
                         action="store_true",
                         help="Show curve plot only.")
+    parser.add_argument("--trim-start",
+                        dest="trim_start",
+                        default=0,
+                        type=int,
+                        help="Define how many frames to trim CoM curve plot from strart.")
+    parser.add_argument("--trim-end",
+                        dest="trim_end",
+                        default=0,
+                        type=int,
+                        help="Define how many frames to trim CoM curve plot from end.")
     args = parser.parse_args()
 
     cam_ids = args.cam.split(",")
     process_files(args.input_dir, use_subject_id=args.subject,
                   use_throw_id=args.trial,
                   analysis_fps=args.capture_fps,
-                  use_cam_ids=cam_ids)
+                  use_cam_ids=cam_ids,
+                  trim_start=args.trim_start,
+                  trim_end=args.trim_end)
