@@ -40,6 +40,9 @@ def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
     for line in fd:
         cols = line.split()
 
+        if len(cols) == 0:
+            continue
+
         if len(cols) < max(col_idxs):
             raise ValueError("Corrupted calibration file")
 
