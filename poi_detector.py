@@ -18,6 +18,9 @@ __all__ = ["detect_poi"]
 
 POI_MOVEMENT_THRESHOLD = 0.6
 
+def parse_frame_num(frame):
+    return int(frame["image_id"].split(".")[0])
+
 def detect_poi(sequence, policy="horizontal"):
     # {idx -> { frames_in_motion, tot_x, tot_y, v_x?}}
     idx_movement = defaultdict(lambda: defaultdict(float))
@@ -32,9 +35,11 @@ def detect_poi(sequence, policy="horizontal"):
                 dx = centroid[0] - prev_centroids[idx][0]
                 dy = centroid[1] - prev_centroids[idx][1]
                 if abs(dx) > 50:
-                    sc.print_warn("Too high dx (%.2f): idx=%i" % (dx, idx))
+                    frame_num = parse_frame_num(frame)
+                    sc.print_warn("Too high dx (%.2f): idx=%i (frame %i)" % (dx, idx, frame_num))
                 if abs(dy) > 50:
-                    sc.print_warn("Too high dy (%.2f): idx=%i" % (dy, idx))
+                    frame_num = parse_frame_num(frame)
+                    sc.print_warn("Too high dy (%.2f): idx=%i (frame %i)" % (dy, idx, frame_num))
 #               print("Frame %i -- move %i: %.2f, %.2f" % (i, idx, dx, dy))
                 idx_movement[idx]["frames_in_motion"] += 1
                 idx_movement[idx]["tot_x"] += dx
