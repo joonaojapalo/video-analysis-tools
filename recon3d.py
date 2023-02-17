@@ -375,6 +375,34 @@ def get_target_fps(cam_ids, sync_file_dir):
         return DEFAULT_FPS
 
 
+def pad_posedata(posedata, sync_file_dir):
+    cam_ids = posedata.keys()
+    if sync_file_dir:
+        # read ffmpeg config from file
+        cam_fps = read_ffmpeg_fps_config(sync_file_dir, cam_ids)
+    else:
+        cam_fps = {}
+
+    durations = dict((cam_id, len(posearr) / cam_fps[cam_id])
+                     for cam_id, posearr in posedata.items()
+                     )
+    target_duration = max(durations.values())
+    for cam_id in posedata.keys():
+        if durations[cam_id] != target_duration:
+            duration = durations[cam_id]
+            fps = cam_fps[cam_id]
+            pad_frames = round((target_duration - duration) * fps)
+            print("Padding camera '%s' duration: %.2f sec to %.2f (%i frames)" % (cam_id,
+                                                                                  duration,
+                                                                                  target_duration,
+                                                                                  pad_frames))
+            # create bigger array
+            cols = posedata[cam_id].shape[1]
+            padded = np.empty((pad_frames, cols))
+            padded[:] = np.NaN
+            posedata[cam_id] = np.concatenate((posedata[cam_id], padded))
+
+
 def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
     target_fps = DEFAULT_FPS
     if sync_file_dir:
@@ -428,7 +456,6 @@ usage = """
   Define calibration directory:
   python recon3d.py -c ./2013-01-13/Calibration ./2013-01-13
 """
-
 
 if __name__ == "__main__":
     import argparse
@@ -484,7 +511,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # parse & validate com_exclude 
+    # parse & validate com_exclude
     com_exclude = parse_com_exclude_segments(args.com_exclude)
 
     # read directory structure
@@ -530,7 +557,10 @@ if __name__ == "__main__":
             harmonize_indices(sequence)
 
             # find sequence for person-of-interest
-            pois = detect_poi(sequence)
+            pois, poi_warnings = detect_poi(sequence, return_warnings=True)
+
+            for warn_msg in poi_warnings:
+                print(f"    - WARNING: {warn_msg}")
 
             if len(pois) == 0:
                 print("    - FAILED detection: No POI found")
@@ -564,6 +594,9 @@ if __name__ == "__main__":
         if not cam_ids:
             sc.print_fail("Inconsistent input data: no camera ids found.")
             sys.exit(1)
+
+        # pad posedata tails to equal length
+        pad_posedata(posedata, sync_file_dir)
 
         # do fps interpolation
         posedata = interpolate_cams(posedata, cam_ids, sync_file_dir)

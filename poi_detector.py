@@ -21,10 +21,11 @@ POI_MOVEMENT_THRESHOLD = 0.6
 def parse_frame_num(frame):
     return int(frame["image_id"].split(".")[0])
 
-def detect_poi(sequence, policy="horizontal"):
+def detect_poi(sequence, policy="horizontal", return_warnings=False):
     # {idx -> { frames_in_motion, tot_x, tot_y, v_x?}}
     idx_movement = defaultdict(lambda: defaultdict(float))
     prev_centroids = {}
+    warnings = []
 
     for i, frame in enumerate(sequence):
         centroids = {}
@@ -36,11 +37,12 @@ def detect_poi(sequence, policy="horizontal"):
                 dy = centroid[1] - prev_centroids[idx][1]
                 if abs(dx) > 50:
                     frame_num = parse_frame_num(frame)
-                    sc.print_warn("Too high dx (%.2f): idx=%i (frame %i)" % (dx, idx, frame_num))
+                    warn_msg = "Too high dx (%.2f): idx=%i (frame %i)" % (dx, idx, frame_num)
+                    warnings.append(warn_msg)
                 if abs(dy) > 50:
                     frame_num = parse_frame_num(frame)
-                    sc.print_warn("Too high dy (%.2f): idx=%i (frame %i)" % (dy, idx, frame_num))
-#               print("Frame %i -- move %i: %.2f, %.2f" % (i, idx, dx, dy))
+                    warn_msg = "Too high dy (%.2f): idx=%i (frame %i)" % (dy, idx, frame_num)
+                    warnings.append(warn_msg)
                 idx_movement[idx]["frames_in_motion"] += 1
                 idx_movement[idx]["tot_x"] += dx
                 idx_movement[idx]["tot_y"] += dy
@@ -65,12 +67,15 @@ def detect_poi(sequence, policy="horizontal"):
 
     if 1.5 * stdx < abs(mx):
         msg = ", ".join(f"{x} ({idx})" for x,idx in zip(poi_metrics, idx_lookup))
-        sc.print_warn(f"Ambiguous person of interest detection: {msg}")
+        warnings.append(f"Ambiguous person of interest detection: {msg}")
         print("  poi_metrics: mean=%.2f (std. %.2f)" % (mx, stdx))
 
     # get idxs with most movement
     pois = np.abs(poi_metrics) / np.abs(poi_metrics).sum() > POI_MOVEMENT_THRESHOLD
-    return idx_lookup[pois]
+    if return_warnings:
+        return idx_lookup[pois], warnings
+    else:
+        return idx_lookup[pois]
 
 
 if __name__ == "__main__":
