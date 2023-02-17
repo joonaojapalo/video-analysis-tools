@@ -80,7 +80,7 @@ def animate(frame_counter, n_frames, frame_start, fps):
     ax.set_aspect('equal')
 
 usage = """
-  python viz3d.py .\S1_01-pos.npy --save
+  python viz3d.py .\S1_01-pos.npy -o S1_01-skeleton.mp4
 """
 
 if __name__ == "__main__":

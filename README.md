@@ -64,7 +64,7 @@ Visualize 3d reconstructions:
 viz3d .\2023-01-13\Subjects\S1\Output\S1_01.npy --com .\2023-01-13\Subjects\S1\Output\S1_01-com.npy
 
 # save recostruction as video file
-viz3d --save .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy
+viz3d .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy -- com .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01-com.npy -o S1_01-skeleton.mp3
 ```
 
 ## Reconstruction parameters
@@ -84,7 +84,6 @@ recon3d --com 2023-01-15 --com-exclude hands
 recon3d --com 2023-01-15 --com-exclude legs
 recon3d --com 2023-01-15 --com-exclude forearms
 recon3d --com 2023-01-15 --com-exclude forearms
-
 ```
 
 
