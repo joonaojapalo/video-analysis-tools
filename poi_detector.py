@@ -37,11 +37,11 @@ def detect_poi(sequence, policy="horizontal", return_warnings=False):
                 dy = centroid[1] - prev_centroids[idx][1]
                 if abs(dx) > 50:
                     frame_num = parse_frame_num(frame)
-                    warn_msg = "Too high dx (%.2f): idx=%i (frame %i)" % (dx, idx, frame_num)
+                    warn_msg = "Frame %i -- Too high horizontal bbox movement (%.2f px) of pose_idx: %i" % (frame_num, dx, idx)
                     warnings.append(warn_msg)
                 if abs(dy) > 50:
                     frame_num = parse_frame_num(frame)
-                    warn_msg = "Too high dy (%.2f): idx=%i (frame %i)" % (dy, idx, frame_num)
+                    warn_msg = "Frame %i -- Too high vertical bbox movement (%.2f px) of pose_idx: %i" % (frame_num, dx, idx)
                     warnings.append(warn_msg)
                 idx_movement[idx]["frames_in_motion"] += 1
                 idx_movement[idx]["tot_x"] += dx
