@@ -63,8 +63,11 @@ Visualize 3d reconstructions:
 # visualize skeleton and CoM
 viz3d .\2023-01-13\Subjects\S1\Output\S1_01.npy --com .\2023-01-13\Subjects\S1\Output\S1_01-com.npy
 
-# save recostruction as video file
-viz3d .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01.npy -- com .\S1_01-pos.npy.\2023-01-13\Subjects\S1\Output\S1_01-com.npy -o S1_01-skeleton.mp3
+# save all reconstructions in directory tree to video files
+viz3d .\2023-01-13\
+
+# save single subject reconstructions in directory tree to video files
+viz3d .\2023-01-13\ -S S01
 ```
 
 ## Reconstruction parameters
