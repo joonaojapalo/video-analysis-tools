@@ -557,8 +557,9 @@ if __name__ == "__main__":
             print("Skipping Butterworth filter...")
 
         # write to disk
-        output_dir = os.path.join(camset.subject_dir, "Output")
-        output_filename = f"{camset.subject_id}_{camset.trial_id}"
+        output_dir = DataSource.get_output_dir(camset.subject_dir)
+        output_filename = DataSource.get_output_basename(camset.subject_id,
+                                                         camset.trial_id)
         output_path = os.path.join(output_dir, output_filename)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
