@@ -111,7 +111,17 @@ def get_alphapose_path():
     DEFAULT = "/projappl/project_2006605/AlphaPose/"
     apdir = os.environ.get("ALPHAPOSE_PATH", DEFAULT)
     return Path(apdir)
-  
+
+
+def compute_job_item_allocation(n_commands, preferred_array_items=32):
+    n_arr_items = min(n_commands, preferred_array_items)
+    jobs_per_item = n_commands // n_arr_items
+
+    return {
+        "ARRAY_ITEMS": n_arr_items,
+        "JOBS_PER_ITEM": jobs_per_item
+    }
+
 
 if __name__ == "__main__":
     # parse command line args
@@ -139,25 +149,23 @@ if __name__ == "__main__":
     with open(outputfile, "w") as commandFile:
         commandFile.writelines(commands)
 
-    # create batch file from template
-    NUM_ARRAY_ITEMS = 32
-    n_commands = len(commands)
-
-    n_arr_items = min(n_commands, NUM_ARRAY_ITEMS)
-
-    if n_arr_items == 0:
+    if len(commands) == 0:
         print("No commands to run.")
         print("ALPHAPOSE JOB FILE CREATION: NO COMMANDS")
         sys.exit(0)
     else:
+        # create batch file from template
+        NUM_ARRAY_ITEMS = 32
+        alloc = compute_job_item_allocation(len(commands))
+
         with open("alphapose-job.sh.template") as template_fd:
             with open(sandbox.joinpath("alphapose-job.sh"), "w") as output_fd:
 
-                jobs_per_item = n_commands // n_arr_items
                 for line in template_fd:
-                    line= line.replace("{{JOBFILE}}", args.outputfile)
-                    line = line.replace("{{ARRAY_ITEMS}}", str(n_arr_items))
-                    line = line.replace("{{JOBS_PER_ITEM}}", str(jobs_per_item))
+                    line = line.replace("{{JOBFILE}}", args.outputfile)
+                    line = line.replace("{{ARRAY_ITEMS}}", str(alloc["ARRAY_ITEMS"]))
+                    line = line.replace(
+                        "{{JOBS_PER_ITEM}}", str(alloc["JOBS_PER_ITEM"]))
                     output_fd.write(line)
 
     num_lines = sum(1 for line in open(outputfile))
