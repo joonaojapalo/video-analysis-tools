@@ -136,6 +136,11 @@ def get_polyline(v_arr, width, CURVE_HEIGHT, CURVE_BOTTOM):
     for xa, ya in zip(xs, ys):
         # build velocity curve points
         Nv = ya.shape[0]
+
+        if Nv < 2:
+            # cannot interpolate curve
+            continue
+
         curve_segment_width = int(width * xa.shape[0] / v_arr.shape[0])
         interp_v = scipy.interpolate.interp1d(np.arange(Nv), ya)
         curve_x = np.arange(curve_segment_width) / \
@@ -154,7 +159,7 @@ def get_polyline(v_arr, width, CURVE_HEIGHT, CURVE_BOTTOM):
     return curves
 
 
-def render_output(input_video, outfile, v_arr, trim_start=0):
+def render_output(input_video, outfile, v_arr):
     # read input
     input_stream = cv2.VideoCapture(input_video)
 
@@ -162,7 +167,7 @@ def render_output(input_video, outfile, v_arr, trim_start=0):
     width = int(input_stream.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(input_stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(input_stream.get(cv2.CAP_PROP_FPS))
-    # frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
 
     CURVE_BOTTOM = 400
     CURVE_TOP = 50
@@ -182,6 +187,7 @@ def render_output(input_video, outfile, v_arr, trim_start=0):
     num_frame = 0
 
     font = cv2.FONT_HERSHEY_DUPLEX
+    print("     ", end="")
 
     while input_stream.isOpened():
         ret, image = input_stream.read()
@@ -235,8 +241,9 @@ def render_output(input_video, outfile, v_arr, trim_start=0):
 
         # write output
         output.write(image)
-        if num_frame % 24 == 0:
-            print(".", end="", flush=True)
+        print("\b\b\b\b\b%3d %%" % (100 * (num_frame + 1) // frame_count),
+                end="",
+                flush=True)
         num_frame += 1
 
     print()
@@ -320,7 +327,7 @@ def process_files(input_dir,
                 video_fname = f"{subject_id}_{throw_id}_{camera_id}-sync.mp4"
                 input_video = p.parent.joinpath("Sync", video_fname)
 
-                if not input_com.is_file():
+                if not input_video.is_file():
                     print(
                         f"Skipping... No video file (camera={camera_id}) found for: {subject_id}_{throw_id}")
                     continue
@@ -349,7 +356,7 @@ def process_files(input_dir,
                     print(f"  - input (video): {input_video}")
                     print(f"  - input (CoM): {input_com}")
                     print(f"  - output: {outfile}")
-                    render_output(str(input_video), str(outfile), v_arr, trim_start=trim_start)
+                    render_output(str(input_video), str(outfile), v_arr)
 
 
 if __name__ == "__main__":
@@ -392,4 +399,5 @@ if __name__ == "__main__":
                   analysis_fps=args.capture_fps,
                   use_cam_ids=cam_ids,
                   trim_start=args.trim_start,
-                  trim_end=args.trim_end)
+                  trim_end=args.trim_end,
+                  plot_only=args.plot_only)
