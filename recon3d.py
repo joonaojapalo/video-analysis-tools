@@ -216,6 +216,8 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
             if n_cams < n_cams_min:
                 continue
 
+            stats[f"enough_cam_frames"] += 1
+
             # reconstruct all camera pair combinations
             if use_combinations:
                 pair_pos = []
@@ -543,6 +545,11 @@ if __name__ == "__main__":
             posedata, cam_ids, camera_calibration,
             n_cams_min=args.n_cams_min,
             use_combinations=args.cam_combinations)
+
+        frames_with_data = stats["enough_cam_frames"]
+        if frames_with_data == 0:
+            sc.print_fail(f"ERROR: No reconstructed points.")
+            continue
 
         # post median filter
         if args.median_post > 1:
