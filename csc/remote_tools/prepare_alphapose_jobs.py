@@ -7,6 +7,7 @@ GPL 3.0 or newer licence applies
 
 import os  # File listing
 import sys
+import math
 from pathlib import Path
 import argparse
 
@@ -114,8 +115,11 @@ def get_alphapose_path():
 
 
 def compute_job_item_allocation(n_commands, preferred_array_items=32):
+    if n_commands == 0:
+        raise ValueError("Zero number of commands.")
+
     n_arr_items = min(n_commands, preferred_array_items)
-    jobs_per_item = n_commands // n_arr_items
+    jobs_per_item = math.ceil(n_commands / n_arr_items)
 
     return {
         "ARRAY_ITEMS": n_arr_items,
