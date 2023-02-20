@@ -51,9 +51,6 @@ def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
     return output
 
 
-
-
-
 def read_calibration_files(path):
     points_fns = glob.glob(os.path.join(path, "calibration_camera-*.txt"))
     world_fn = os.path.join(path, "calibration_world.txt")
@@ -187,10 +184,19 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
     world_pos = np.empty([n_frames_ref, 3*26])
     world_pos[:] = np.NaN
 
-    print("Reconstructing:")
+    print("Reconstructing:", flush=True)
+
+    # progress counter placeholder
+    print("     ", end="")
+
     for frame in range(n_frames_ref):
-        # reconstruct person
-        print(".", end="", flush=True)
+        if frame % (n_frames_ref // 100) == 0:
+            # update progress (5 x cursor backwards + "xxx %")
+            print("\b\b\b\b\b%3d %%" % (100 * (frame + 1) // n_frames_ref),
+                end="",
+                flush=True)
+
+        # reconstruct keypoints
         for kp in range(26):
             # select only cameras that have observation
             point = []
@@ -214,10 +220,8 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
             if use_combinations:
                 pair_pos = []
                 for pair in itertools.combinations(range(n_cams), n_cams_min):
-                    # compose calibration matrix array
-                    #Ls = calib_by_cam_ids(camera_calibration, point_cam_ids)
-                    Ls = calib_by_cam_ids(
-                        camera_calibration, np.take(point_cam_ids, pair))
+                    Ls = calib_by_cam_ids(camera_calibration,
+                                          np.take(point_cam_ids, pair))
                     pair_point = [point[p] for p in pair]
 
                     # reconstruct point
@@ -346,7 +350,7 @@ def interpolate_cams(posedata, cam_ids, sync_file_dir=None, verbose=True):
         cam_fps = {}
 
     if verbose:
-        print(f"Interpolating to target fps: {target_fps}:")
+        print(f"Interpolating to target fps: {target_fps}:", flush=True)
 
     for cam_id in cam_ids:
         input_fps = cam_fps.get(cam_id, DEFAULT_FPS)
@@ -542,11 +546,13 @@ if __name__ == "__main__":
 
         # post median filter
         if args.median_post > 1:
+            print("Post median filter...", flush=True)
             filter_data_median(world_pos, args.median_post, dimensions=3)
 
         # post Butterworth
         if args.freq > 0:
             try:
+                print("Butterworth LP filter...", flush=True)
                 world_pos = filter_data_butterworth4(
                     world_pos, args.freq, fps, dimensions=3)
             except ValueError as err:
@@ -576,7 +582,7 @@ if __name__ == "__main__":
         outputfiles.append(f"{output_path}.npy")
 
         if args.com:
-            print("Computing CoM...")
+            print("Computing CoM...", flush=True)
             com_trajectory = com.compute(world_pos, com_exclude)
             com_output_path = os.path.join(
                 output_dir, f"{output_filename}-com")
