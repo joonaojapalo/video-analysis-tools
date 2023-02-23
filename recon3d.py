@@ -47,7 +47,7 @@ def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
             raise ValueError("Corrupted calibration file")
 
         marker = cols[marker_idx]
-        output[marker] = [float(cols[i]) for i in col_idxs]
+        output[marker] = [float(cols[i].replace(",", ".")) for i in col_idxs]
     return output
 
 
