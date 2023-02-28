@@ -193,8 +193,8 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
         if frame % (n_frames_ref // 100) == 0:
             # update progress (5 x cursor backwards + "xxx %")
             print("\b\b\b\b\b%3d %%" % (100 * (frame + 1) // n_frames_ref),
-                end="",
-                flush=True)
+                  end="",
+                  flush=True)
 
         # reconstruct keypoints
         for kp in range(26):
@@ -559,9 +559,16 @@ if __name__ == "__main__":
         # post Butterworth
         if args.freq > 0:
             try:
-                print("Butterworth LP filter...", flush=True)
+                print("Butterworth LP filter (cutoff: %.1f Hz)..." %
+                      args.freq,
+                      flush=True
+                      )
                 world_pos = filter_data_butterworth4(
-                    world_pos, args.freq, fps, dimensions=3)
+                    world_pos,
+                    args.freq,
+                    fps,
+                    dimensions=3
+                )
             except ValueError as err:
                 print("[butterworth-lowpass] ERROR:", err)
                 print("Skipping to next camera set...")
