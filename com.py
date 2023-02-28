@@ -88,12 +88,19 @@ def compute(world_pos, exclude=[]):
         segnan = np.isnan(pos)
         if segnan.any():
             nanframes = np.where(segnan)[0]
-            missing_segments.append((segname, min(nanframes), max(nanframes)))
+            missing = (
+                segname,
+                min(nanframes),
+                max(nanframes),
+                segnan.any(1).sum(),
+            )
+            missing_segments.append(missing)
 
     if len(missing_segments):
         print("Segments with missing data:")
-        for segname, f0, f1 in missing_segments:
-            print("  - %s (frames: %i..%i)" % (segname, f0, f1))
+        for segname, f0, f1, total in missing_segments:
+            print("  - %s (frames: %i on interval %i..%i)" %
+                  (segname, total, f0, f1))
         print()
 
     comarr = np.zeros([world_pos.shape[0], 3])

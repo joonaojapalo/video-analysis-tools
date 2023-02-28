@@ -327,7 +327,7 @@ def process_files(input_dir,
                 video_fname = f"{subject_id}_{throw_id}_{camera_id}-sync.mp4"
                 input_video = p.parent.joinpath("Sync", video_fname)
 
-                if not input_video.is_file():
+                if not input_video.is_file() and not plot_only:
                     print(
                         f"Skipping... No video file (camera={camera_id}) found for: {subject_id}_{throw_id}")
                     continue
