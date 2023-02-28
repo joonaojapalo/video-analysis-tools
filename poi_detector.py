@@ -5,14 +5,12 @@ POI = the one moving most in horizontal direction
 """
 
 from collections import defaultdict
-import pprint
 
 import numpy as np
 
 from ap_loader import load_alphapose_json
 from pose_tracker import harmonize_indices
 from keypoint_tools import box_from_keypoints
-import shellcolors as sc
 
 __all__ = ["detect_poi"]
 
@@ -22,7 +20,7 @@ def parse_frame_num(frame):
     return int(frame["image_id"].split(".")[0])
 
 def detect_poi(sequence, policy="horizontal", return_warnings=False):
-    # {idx -> { frames_in_motion, tot_x, tot_y, v_x?}}
+    # { idx: { frames_in_motion, tot_x, tot_y } }
     idx_movement = defaultdict(lambda: defaultdict(float))
     prev_centroids = {}
     warnings = []
@@ -48,8 +46,6 @@ def detect_poi(sequence, policy="horizontal", return_warnings=False):
                 idx_movement[idx]["tot_y"] += dy
             centroids[idx] = centroid
         prev_centroids = centroids
-
-#    pprint.pprint(idx_movement)
 
     def tot_x_key(e):
         return -e[1]["tot_x"]
@@ -88,13 +84,15 @@ if __name__ == "__main__":
     # load data
     print("Opening %s" % args.input_json)
     sequence = load_alphapose_json(args.input_json)
-    # "pose-estimation/S1_01_oe/alphapose-results.json"
 
     # harmonize pose idx
     harmonize_indices(sequence)
-    pois = detect_poi(sequence)
+    pois, warnings = detect_poi(sequence, return_warnings=True)
 
     if len(pois) > 1:
-        print("WARNING: multiple POI candidates found", pois)
+        print("  - WARNING: multiple POI candidates found", pois)
+    
+    for w in warnings:
+        print("  - WARNING: %s" % w)
 
     print(pois)
