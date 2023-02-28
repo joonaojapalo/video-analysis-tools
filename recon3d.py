@@ -484,8 +484,9 @@ if __name__ == "__main__":
         # load pose data
         print("Opening pose data files:")
         for cam_id, pose_path in camset.paths_by_cam.items():
-            print(f"  File '{pose_path}'")
+            print(f"  Pose data: {Path(pose_path).parent.name}")
             print(f"    - camera: {cam_id}")
+            print(f"    - path: '{pose_path}'")
             sequence = load_alphapose_json(pose_path)
 
             # pose tracking
