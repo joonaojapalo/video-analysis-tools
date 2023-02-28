@@ -61,7 +61,7 @@ def detect_poi(sequence, policy="horizontal", return_warnings=False):
     mx = np.mean(np.abs(poi_metrics))
     stdx = np.std(np.abs(poi_metrics))
 
-    if 1.5 * stdx < abs(mx):
+    if len(poi_metrics) > 1 and 1.5 * stdx < abs(mx):
         msg = ", ".join(f"{x} ({idx})" for x,idx in zip(poi_metrics, idx_lookup))
         warnings.append(f"Ambiguous person of interest detection: {msg}")
         print("  poi_metrics: mean=%.2f (std. %.2f)" % (mx, stdx))
