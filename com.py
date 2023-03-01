@@ -34,25 +34,14 @@ def keypoint(world_pos, name):
     return world_pos[:, 3*KEYPOINTS[name]:3*KEYPOINTS[name] + 3]
 
 
-def compute(world_pos, exclude=[]):
-    """Compute CoM from 3D position coordinates using model by (Dempster, 1955) and
-    adjusted by (Clauser et al., 1969).
-
-    Parameters:
-    world_pos (np.array)    : body segment joint positions (Halpe/26 keypoints)
-    exclude (list(str))     : segments to exclude: "hands, legs, forearms, shanks"
-    """
-    # trunk_weight = 0.678
-    # lower_extr_weight = 0.161
-    # rprox_trunk = 0.626
-    # rprox_lower_extr = 0.447
-
+def compute_segment_com(world_pos):
     p_lsh = keypoint(world_pos, "LShoulder")
     p_rsh = keypoint(world_pos, "RShoulder")
     p_lhip = keypoint(world_pos, "LHip")
     p_rhip = keypoint(world_pos, "RHip")
     p_trunk = com_interp((p_lsh + p_rsh) / 2, (p_lhip + p_rhip) / 2, 0.495)
-    p_head = keypoint(world_pos, "Head")
+    p_head = com_interp(keypoint(world_pos, "Head"),
+                        keypoint(world_pos, "Neck"), 0.517)
     p_larm = com_interp(keypoint(world_pos, "LShoulder"),
                         keypoint(world_pos, "LElbow"), 0.436)
     p_rarm = com_interp(keypoint(world_pos, "RShoulder"),
@@ -69,6 +58,34 @@ def compute(world_pos, exclude=[]):
                           keypoint(world_pos, "RAnkle"), 0.433)
     p_lshank = com_interp(keypoint(world_pos, "LKnee"),
                           keypoint(world_pos, "LAnkle"), 0.433)
+    return (p_trunk, p_head, p_larm, p_rarm, p_lfore, p_rfore, p_lthigh, p_rthigh, p_rshank, p_lshank)
+
+
+def compute(world_pos, exclude=[]):
+    """Compute CoM from 3D position coordinates using model by (Dempster, 1955) and
+    adjusted by (Clauser et al., 1969).
+
+    Parameters:
+    world_pos (np.array)    : body segment joint positions (Halpe/26 keypoints)
+    exclude (list(str))     : segments to exclude: "hands, legs, forearms, shanks"
+    """
+    # trunk_weight = 0.678
+    # lower_extr_weight = 0.161
+    # rprox_trunk = 0.626
+    # rprox_lower_extr = 0.447
+
+    (
+        p_trunk,
+        p_head,
+        p_larm,
+        p_rarm,
+        p_lfore,
+        p_rfore,
+        p_lthigh,
+        p_rthigh,
+        p_rshank,
+        p_lshank
+    ) = compute_segment_com(world_pos)
 
     segments = {
         "head": (p_head, 0.0810),
