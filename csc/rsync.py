@@ -4,7 +4,7 @@ import shellcolors as sc
 from . import ssh
 
 
-def upload(connection, remote, dry_run=False):
+def upload(connection, remote, subject="*", trial="*", dry_run=False):
     """Sync local data to remote directory.
     """
     jobdir_input = remote.get_jobdir_input()
@@ -13,13 +13,14 @@ def upload(connection, remote, dry_run=False):
     ssh.run_command(connection, f"mkdir -p {jobdir_input}")
     sc.print_ok(f"Created remote job input directory: {jobdir_input}")
 
+    rule = f"Sync/{subject}_{trial}_*.mp4"
+
     # transfer command
     rsync_cmd = [
         "rsync",
         "-av", "--progress",
-        "--include='/Subjects'",
-        "--include='Sync/*.mp4'",
         "--include='*/'",
+        f"--include='{rule}'",
         "--exclude='*'",
         "--prune-empty-dirs",
         ".",
@@ -29,6 +30,7 @@ def upload(connection, remote, dry_run=False):
     if dry_run:
         rsync_cmd.append("--list-only")
 
+    print(" ".join(rsync_cmd))
     cwd = str(connection.local_basepath)
     subprocess.run(rsync_cmd, cwd=cwd, check=True)
     return jobdir_input

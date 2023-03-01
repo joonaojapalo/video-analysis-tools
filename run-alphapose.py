@@ -96,7 +96,12 @@ def run_csc(args):
 
     try:
         sc.print_bold("Transfering input videos.")
-        csc.rsync.upload(remote.connection, remote, dry_run=args.dryrun)
+        csc.rsync.upload(remote.connection,
+                         remote,
+                         subject=args.subject,
+                         trial=args.trial,
+                         dry_run=args.dryrun
+                         )
         sc.print_ok("Succesfully transferred input files.")
 
     except subprocess.CalledProcessError as e:
@@ -126,13 +131,19 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--reldir',
                         default=os.path.join("..", "Pose"),
                         help="Output directory relative to input file. (local usage only)")
-    parser.add_argument('-S', '--seq',
+    parser.add_argument('--seq',
                         default=1,
                         type=int,
                         help="Batch sequence number. Default: 1.")
     parser.add_argument('-d', '--dryrun',
                         action="store_true",
                         help="Dry run. No actual data transfers.")
+    parser.add_argument("--subject", "-S",
+                        default="*",
+                        help="Process only subject with id, eg. KE101.")
+    parser.add_argument("--trial", "-T",
+                        default="*",
+                        help="Process only trial with id, eg. 01")
 
     args = parser.parse_args()
 
