@@ -404,8 +404,7 @@ if __name__ == "__main__":
                         type=int,
                         help="Define how many frames to trim CoM curve plot from end.")
     parser.add_argument("--method",
-                        dest="method-xy",
-                        default="",
+                        default="method-xy",
                         help="Method for CoM velocity: window-x, window-xz, diffx, diffxy or diffxyz. Default: window-xz")
     args = parser.parse_args()
 
