@@ -21,29 +21,40 @@ WHITE = (255, 255, 255)
 WHITE_ALPHA = (255, 255, 255, 128)
 
 
-def com_velocity(c, fps, method="window", window=0.05):
+def com_velocity(com_arr, fps, method="window-xz", window=0.05):
     # create output array
-    output = np.zeros(c.shape[0])
+    output = np.zeros(com_arr.shape[0])
     if method == "diffxy":
         # x-y plane
-        output[1:] = np.sqrt(np.diff(c[:, 0])**2+np.diff(c[:, 1])**2) * fps
+        output[1:] = np.sqrt(np.diff(com_arr[:, 0])**2+np.diff(com_arr[:, 1])**2) * fps
         output[0] = output[1]
     elif method == "diffxyz":
         # x-y-z plane
-        output[1:] = np.sqrt(np.diff(c[:, 0])**2 +
-                             np.diff(c[:, 1])**2+np.diff(c[:, 2])**2) * fps
+        output[1:] = np.sqrt(np.diff(com_arr[:, 0])**2 +
+                             np.diff(com_arr[:, 1])**2+np.diff(com_arr[:, 2])**2) * fps
         output[0] = output[1]
     elif method == "diffx":
         # x-plane
-        output[1:] = np.diff(c[:, 0]) * fps
+        output[1:] = np.diff(com_arr[:, 0]) * fps
         output[0] = output[1]
-    elif method == "window":
+    elif method == "window-x":
         n = int(fps * window)
-        xpp = c[n:, 0]
-        xpn = c[:-n, 0]
+        xpp = com_arr[n:, 0]
+        xpn = com_arr[:-n, 0]
         offset_0 = n // 2
         offset_1 = n - offset_0
         output[offset_0:-offset_1] = (xpp - xpn) * fps / n
+        output[:offset_0] = output[n]
+        output[-offset_1:] = output[-1]
+    elif method == "window-xz":
+        n = int(fps * window)
+        xpp = com_arr[n:, 0]
+        xpn = com_arr[:-n, 0]
+        zpp = com_arr[n:, 2]
+        zpn = com_arr[:-n, 2]
+        offset_0 = n // 2
+        offset_1 = n - offset_0
+        output[offset_0:-offset_1] = (np.sqrt((xpp - xpn)**2 + (zpp - zpn)**2)) * fps / n
         output[:offset_0] = output[n]
         output[-offset_1:] = output[-1]
     else:
@@ -51,7 +62,7 @@ def com_velocity(c, fps, method="window", window=0.05):
     return output
 
 
-def compute_velocity(input_com_npy, fps, method="window", window=0.05):
+def compute_velocity(input_com_npy, fps, method="window-xz", window=0.05):
     com = np.load(input_com_npy)
     return com_velocity(com, fps, method, window)
 
@@ -267,6 +278,7 @@ def process_files(input_dir,
                   use_throw_id=None,
                   analysis_fps=240,
                   plot_only=False,
+                  method="window-xz",
                   window_len=0.05,
                   trim_start=0,
                   trim_end=0
@@ -334,7 +346,7 @@ def process_files(input_dir,
 
                 # compute velocity (3D)
                 v_arr = compute_velocity(input_com, analysis_fps,
-                                         method="window",
+                                         method=method,
                                          window=window_len)
                 if trim_start > 0:
                     v_arr[:trim_start] = np.NaN
@@ -391,6 +403,10 @@ if __name__ == "__main__":
                         default=0,
                         type=int,
                         help="Define how many frames to trim CoM curve plot from end.")
+    parser.add_argument("--method",
+                        dest="method-xy",
+                        default="",
+                        help="Method for CoM velocity: window-x, window-xz, diffx, diffxy or diffxyz. Default: window-xz")
     args = parser.parse_args()
 
     cam_ids = args.cam.split(",")
@@ -400,4 +416,5 @@ if __name__ == "__main__":
                   use_cam_ids=cam_ids,
                   trim_start=args.trim_start,
                   trim_end=args.trim_end,
-                  plot_only=args.plot_only)
+                  plot_only=args.plot_only,
+                  method=args.method)
