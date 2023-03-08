@@ -57,6 +57,17 @@ def com_velocity(com_arr, fps, method="window-xz", window=0.05):
         output[offset_0:-offset_1] = (np.sqrt((xpp - xpn)**2 + (zpp - zpn)**2)) * fps / n
         output[:offset_0] = output[n]
         output[-offset_1:] = output[-1]
+    elif method == "window-xy":
+        n = int(fps * window)
+        xpp = com_arr[n:, 0]
+        xpn = com_arr[:-n, 0]
+        ypp = com_arr[n:, 1]
+        ypn = com_arr[:-n, 1]
+        offset_0 = n // 2
+        offset_1 = n - offset_0
+        output[offset_0:-offset_1] = (np.sqrt((xpp - xpn)**2 + (ypp - ypn)**2)) * fps / n
+        output[:offset_0] = output[n]
+        output[-offset_1:] = output[-1]
     else:
         raise ValueError("Invalid method: %s" % (method))
     return output
@@ -404,7 +415,7 @@ if __name__ == "__main__":
                         type=int,
                         help="Define how many frames to trim CoM curve plot from end.")
     parser.add_argument("--method",
-                        default="window-xy",
+                        default="window-xz",
                         help="Method for CoM velocity: window-x, window-xz, diffx, diffxy or diffxyz. Default: window-xz")
     args = parser.parse_args()
 
