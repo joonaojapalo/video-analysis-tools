@@ -19,6 +19,7 @@ from poi_detector import detect_poi
 from sequence_tools import select_sequence_idx
 import fps_interpolate
 from nanmedianfilt import nanmedianfilt
+import progress
 import com
 from datasource import DataSource
 
@@ -186,15 +187,10 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
 
     print("Reconstructing:", flush=True)
 
-    # progress counter placeholder
-    print("     ", end="")
-
     for frame in range(n_frames_ref):
-        if frame % (n_frames_ref // 100) == 0:
-            # update progress (5 x cursor backwards + "xxx %")
-            print("\b\b\b\b\b%3d %%" % (100 * (frame + 1) // n_frames_ref),
-                  end="",
-                  flush=True)
+        if frame % (n_frames_ref // 50) == 0:
+            # print progress indicator
+            progress.progress(frame, n_frames_ref)
 
         # reconstruct keypoints
         for kp in range(26):
@@ -241,7 +237,7 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
 
                 # median of cam pair reconstructions
                 world_pos[frame, kp*3:kp*3+3] = pos
-    print()
+    progress.complete()
     print()
     return world_pos
 

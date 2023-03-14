@@ -8,6 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from datasource import DataSource
 from keypoints import KEYPOINTS
+import progress
 import com
 
 skeleton = [
@@ -331,15 +332,9 @@ def plot_point(ax, point, **kwargs):
     return lines
 
 
-def progress(n, tot):
-    percent_ready = (100 * (n + 1)) // tot
-    print("\b\b\b\b\b%3d %%" % percent_ready, end="", flush=True)
-
-
 def animate(frame_counter, n_frames, frame_start, fps, frames_per_animframe, view):
     frame = frame_start + frame_counter * 240 // fps
     view.set_data(frame)
-    progress(frame_counter, n_frames)
 
 
 def process_dir(input_dir, subject, trial, output_fps=120, trim_start=0):
@@ -410,8 +405,8 @@ def process_file(input, output, input_com=None, frame=None,
 
         if output:
             print("  - processing video:      ", end="")
-            ani.save(output, progress_callback=progress)
-            print()
+            ani.save(output, progress_callback=progress.progress)
+            progress.complete()
             print(f"  - wrote {n_video_frames} frames to file: {output}")
             print()
         else:
@@ -463,10 +458,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     input = Path(args.input)
-
-    # setup 3d plot
-    #fig = plt.figure(figsize=(20, 8), dpi=72)
-    # plt.tight_layout(pad=1)
 
     if input.is_file():
         print(f"Creating 3d visualization for: {args.input}")

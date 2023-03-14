@@ -6,6 +6,9 @@ import numpy as np
 import cv2
 
 from alphapose_json import load_alphapose_json
+from pose_tracker import harmonize_indices
+from poi_detector import detect_poi
+import progress
 import viz3d
 
 BLUE = (255, 0, 0)
@@ -18,7 +21,7 @@ CYAN = (255, 128, 128)
 
 
 def rg(ratio):
-    if ratio > 0.9: 
+    if ratio > 0.9:
         return GREEN
     elif ratio > 0.5:
         return YELLOW
@@ -39,6 +42,8 @@ def render_skeleton(image, pose):
         cv2.circle(image, [x0, y0], 4, rg(score0), -1)
         cv2.circle(image, [x1, y1], 4, rg(score1), -1)
 
+
+def render_bbox(image, pose, thickness=1):
     cx, cy, w, h = pose["box"]
     box = np.array([
         [
@@ -48,18 +53,36 @@ def render_skeleton(image, pose):
             [cx, cy+h],
         ]
     ], dtype=np.int32)
-    cv2.polylines(image, box, True, WHITE, 1)
+    cv2.polylines(image, box, True, WHITE, thickness)
     cv2.putText(image,
                 str(pose["idx"]),
-                np.array([cx, cy - 2], dtype=np.int32),
+                np.array([cx, cy - 5], dtype=np.int32),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1.25, WHITE, 2)
+                1.1, WHITE, 2)
 
 
-def render_output(input_video, input_json, outfile):
+def render_output(input_video, input_json, outfile, use_orig_idx=False):
+    """Render alphapose results (skeleton & yolo bbox) on video.
+
+    Arguments:
+    input_video (str)   : path to video file
+    input_json  (str)   : path to alphapose results json file
+    outfile (str)       : output file path
+    use_orig_idx (bool) : use oiginal alphapose pose indices instead of
+                          harmonized (=dropped frame & index change tracking).
+    """
     # read alphapose json
     print("Reading", input_json)
     posedata = load_alphapose_json(input_json)
+
+    # harmonize pose idx
+    poi = None
+    if not use_orig_idx:
+        harmonize_indices(posedata)
+        pois = detect_poi(posedata)
+        if len(pois) == 1:
+            poi = pois[0]
+            print(f"Pose-of-interest: {poi}")
 
     # read input
     input_stream = cv2.VideoCapture(str(input_video))
@@ -68,7 +91,7 @@ def render_output(input_video, input_json, outfile):
     width = int(input_stream.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(input_stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(input_stream.get(cv2.CAP_PROP_FPS))
-    # frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_count = int(input_stream.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # open output video file
     print("Writing to:", outfile)
@@ -82,20 +105,21 @@ def render_output(input_video, input_json, outfile):
         if not ret:
             break
 
-        # read image
-#        image = cv2.cvtColor(frame, cv2.COLOR_RGB2RGB)
-
         if num_frame < len(posedata):
             for pose in posedata[num_frame]["objs"]:
                 render_skeleton(image, pose)
 
+                # highlight poi with thick border
+                thickness = 3 if poi == pose["idx"] else 1
+                render_bbox(image, pose, thickness)
+
         # write output
         output.write(image)
-        if num_frame % 24 == 0:
-            print(".", end="", flush=True)
+        if num_frame % 12 == 0:
+            progress.progress(num_frame, frame_count)
         num_frame += 1
 
-    print("\nDone.")
+    progress.complete()
 
 
 if __name__ == "__main__":
