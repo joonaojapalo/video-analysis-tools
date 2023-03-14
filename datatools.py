@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 from pose_tracker import harmonize_indices
 from sequence_tools import select_sequence_idx
 

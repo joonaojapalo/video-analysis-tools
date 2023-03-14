@@ -4,7 +4,7 @@ import copy
 
 from pylab import plot, show, text, xlim, ylim, title, subplot
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 from pose_tracker import *
 from keypoint_tools import box_from_keypoints
 from pose_tracker import harmonize_indices

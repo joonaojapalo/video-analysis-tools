@@ -4,7 +4,7 @@ from pylab import plot, show
 import numpy as np
 import scipy.signal
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 from pose_tracker import harmonize_indices
 from sequence_tools import select_sequence_idx
 from recon3d import seq_as_array, drop_low_scores

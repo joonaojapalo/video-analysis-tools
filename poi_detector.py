@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 from pose_tracker import harmonize_indices
 from keypoint_tools import box_from_keypoints
 

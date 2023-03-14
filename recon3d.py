@@ -13,7 +13,7 @@ from dltx import dlt_reconstruct, dlt_calibrate
 
 import cmdline
 import shellcolors as sc
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 from pose_tracker import harmonize_indices
 from poi_detector import detect_poi
 from sequence_tools import select_sequence_idx

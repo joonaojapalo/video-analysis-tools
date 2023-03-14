@@ -8,7 +8,7 @@ import imageio
 
 from keypoint_tools import box_from_keypoints
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 
 colors = [
     "red",

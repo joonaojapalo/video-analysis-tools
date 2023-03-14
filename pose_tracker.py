@@ -260,7 +260,7 @@ def harmonize_indices(sequence):
 
 
 if __name__ == "__main__":
-    from ap_loader import load_alphapose_json
+    from alphapose_json import load_alphapose_json
     import argparse
 
     parser = argparse.ArgumentParser("pose_tracker.py")

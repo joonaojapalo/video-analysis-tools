@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-from ap_loader import load_alphapose_json
+from alphapose_json import load_alphapose_json
 import viz3d
 
 BLUE = (255, 0, 0)
