@@ -2,6 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 import os
+import glob
 
 import numpy as np
 import cv2
@@ -26,7 +27,8 @@ def com_velocity(com_arr, fps, method="window-xz", window=0.05):
     output = np.zeros(com_arr.shape[0])
     if method == "diffxy":
         # x-y plane
-        output[1:] = np.sqrt(np.diff(com_arr[:, 0])**2+np.diff(com_arr[:, 1])**2) * fps
+        output[1:] = np.sqrt(np.diff(com_arr[:, 0])**2 +
+                             np.diff(com_arr[:, 1])**2) * fps
         output[0] = output[1]
     elif method == "diffxyz":
         # x-y-z plane
@@ -54,7 +56,8 @@ def com_velocity(com_arr, fps, method="window-xz", window=0.05):
         zpn = com_arr[:-n, 2]
         offset_0 = n // 2
         offset_1 = n - offset_0
-        output[offset_0:-offset_1] = (np.sqrt((xpp - xpn)**2 + (zpp - zpn)**2)) * fps / n
+        output[offset_0:-
+               offset_1] = (np.sqrt((xpp - xpn)**2 + (zpp - zpn)**2)) * fps / n
         output[:offset_0] = output[n]
         output[-offset_1:] = output[-1]
     elif method == "window-xy":
@@ -65,7 +68,8 @@ def com_velocity(com_arr, fps, method="window-xz", window=0.05):
         ypn = com_arr[:-n, 1]
         offset_0 = n // 2
         offset_1 = n - offset_0
-        output[offset_0:-offset_1] = (np.sqrt((xpp - xpn)**2 + (ypp - ypn)**2)) * fps / n
+        output[offset_0:-
+               offset_1] = (np.sqrt((xpp - xpn)**2 + (ypp - ypn)**2)) * fps / n
         output[:offset_0] = output[n]
         output[-offset_1:] = output[-1]
     else:
@@ -221,7 +225,7 @@ def render_output(input_video, outfile, v_arr):
 
         # gridlines
         cv2.polylines(image, h_grid_lines, False,
-                        GRAY_DARK_ALPHA, 2, cv2.LINE_AA)
+                      GRAY_DARK_ALPHA, 2, cv2.LINE_AA)
 
         # velocity curve
         cv2.polylines(image, polyline, False, YELLOW, 2, cv2.LINE_AA)
@@ -230,7 +234,7 @@ def render_output(input_video, outfile, v_arr):
         N = v_arr.shape[0]
         hx = 1 + (width - 1) * (1 + num_frame) // N
         cv2.line(image, [hx, CURVE_TOP], [
-                    hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
+            hx, CURVE_BOTTOM], GRAY_DARK_ALPHA, 5)
         cv2.line(image, [hx, CURVE_TOP], [hx, CURVE_BOTTOM], WHITE, 2)
 
         # gridline labels
@@ -264,8 +268,8 @@ def render_output(input_video, outfile, v_arr):
         # write output
         output.write(image)
         print("\b\b\b\b\b%3d %%" % (100 * (num_frame + 1) // frame_count),
-                end="",
-                flush=True)
+              end="",
+              flush=True)
         num_frame += 1
 
     print()
@@ -385,7 +389,7 @@ def process_files(input_dir,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze-com")
     parser.add_argument("input_dir",
-                        help="Input directory file, eg. 2023-02-16/")
+                        help="Input directory file, eg. 2023-02-16/. Or project/*")
     parser.add_argument("--subject", "-S",
                         default=None,
                         help="Process only subject with id, eg. KE101")
@@ -417,14 +421,27 @@ if __name__ == "__main__":
     parser.add_argument("--method",
                         default="window-xz",
                         help="Method for CoM velocity: window-x, window-xz, diffx, diffxy or diffxyz. Default: window-xz")
+    parser.add_argument("--csv",
+                        action="store_true",
+                        help="Output trajectories as CSV files. Do not output video/image")
     args = parser.parse_args()
 
     cam_ids = args.cam.split(",")
-    process_files(args.input_dir, use_subject_id=args.subject,
-                  use_throw_id=args.trial,
-                  analysis_fps=args.capture_fps,
-                  use_cam_ids=cam_ids,
-                  trim_start=args.trim_start,
-                  trim_end=args.trim_end,
-                  plot_only=args.plot_only,
-                  method=args.method)
+
+    # glob directories by input
+    globs = [ dir for dir in glob.glob(args.input_dir) if os.path.isdir(dir)]
+
+    if not globs:
+        print("  No input directories.")
+        sys.exit(1)
+
+    for input_dir in globs:
+        process_files(input_dir,
+                      use_subject_id=args.subject,
+                      use_throw_id=args.trial,
+                      analysis_fps=args.capture_fps,
+                      use_cam_ids=cam_ids,
+                      trim_start=args.trim_start,
+                      trim_end=args.trim_end,
+                      plot_only=args.plot_only,
+                      method=args.method)
