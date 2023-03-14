@@ -2,13 +2,13 @@ import argparse
 import sys
 from pathlib import Path
 import os
-import glob
 
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import scipy.interpolate
 
+import fs
 from ffmpeg_sync.index_xlsx import read_index_xlsx
 import indexfiles
 
@@ -429,13 +429,13 @@ if __name__ == "__main__":
     cam_ids = args.cam.split(",")
 
     # glob directories by input
-    globs = [ dir for dir in glob.glob(args.input_dir) if os.path.isdir(dir)]
+    input_dirs = fs.globdirs(args.input_dir)
 
-    if not globs:
+    if not input_dirs:
         print("  No input directories.")
         sys.exit(1)
 
-    for input_dir in globs:
+    for input_dir in input_dirs:
         process_files(input_dir,
                       use_subject_id=args.subject,
                       use_throw_id=args.trial,
