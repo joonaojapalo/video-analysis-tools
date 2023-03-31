@@ -26,7 +26,7 @@ from datasource import DataSource
 DEFAULT_FPS = 50
 
 # regular expressions
-cam_file_re = re.compile("calibration_camera-([a-z]+).txt")
+cam_file_re = re.compile("calibration_camera-([A-Za-z]+).txt")
 
 # execution statistics
 stats = defaultdict(int)
