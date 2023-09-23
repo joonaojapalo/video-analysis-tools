@@ -1,7 +1,5 @@
 import os
 import sys
-import re
-import glob
 import pprint
 from collections import defaultdict
 from pathlib import Path
@@ -10,108 +8,21 @@ import itertools
 import numpy as np
 import scipy.signal
 from dltx import dlt_reconstruct, dlt_calibrate
+from calibration import load_calibration
 
 import cmdline
 import shellcolors as sc
-from alphapose_json import load_alphapose_json
-from pose_tracker import harmonize_indices
-from poi_detector import detect_poi
-from sequence_tools import select_sequence_idx
 import fps_interpolate
 from nanmedianfilt import nanmedianfilt
 import progress
 import com
-from datasource import DataSource
+from datasource import AlphaposeDataSource, SIMIDataSource, DataSourceException
+from outputwriter import CSVOuputWriter, NumpyOutputWriter
 
 DEFAULT_FPS = 50
 
-# regular expressions
-cam_file_re = re.compile("calibration_camera-([A-Za-z]+).txt")
-
 # execution statistics
 stats = defaultdict(int)
-
-
-def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
-    header = [h.lower() for h in next(fd).split()]
-    marker_idx = header.index(marker_column.lower())
-    col_idxs = [header.index(c.lower()) for c in columns]
-
-    output = {}
-    for line in fd:
-        cols = line.split()
-
-        if len(cols) == 0:
-            continue
-
-        if len(cols) < max(col_idxs):
-            raise ValueError("Corrupted calibration file")
-
-        marker = cols[marker_idx]
-        output[marker] = [float(cols[i].replace(",", ".")) for i in col_idxs]
-    return output
-
-
-def read_calibration_files(path):
-    points_fns = glob.glob(os.path.join(path, "calibration_camera-*.txt"))
-    world_fn = os.path.join(path, "calibration_world.txt")
-
-    if len(points_fns) == 0:
-        raise Exception("No camera calibration files found")
-
-    with open(world_fn) as fd:
-        world = read_calibration_ssv(fd, "Point", ["X", "Y", "Z"])
-
-    cams = {}
-    for fn in points_fns:
-        basename = os.path.basename(fn)
-        m = cam_file_re.match(basename)
-
-        if m is None:
-            raise Exception(
-                "Invalid camera calibraton file name: %s" % basename)
-
-        cam_id = m.group(1)
-        with open(fn) as fd:
-            cams[cam_id] = read_calibration_ssv(fd, "Marker")
-
-    return world, cams
-
-
-def load_calibration(path):
-    calib_world, calib_cams = read_calibration_files(path)
-
-    if len(calib_cams) == 0:
-        raise Exception("No camera calibration files read: %s" % path)
-
-    markers = calib_world.keys()
-#    pprint.pprint(world_arr)
-
-    cam_ids = []
-    camera_calibration = {}
-
-    print("Camera calibration error values:")
-    for cam_id, cam_values in calib_cams.items():
-        use_markers = [x for x in markers if x in cam_values]
-        cam_arr = [cam_values[x] for x in use_markers]
-        cam_ids.append(cam_id)
-
-        world_arr = [calib_world[x] for x in use_markers]
-        n_dims = len(world_arr[0])
-        assert n_dims == 3
-
-        # dlt calibration
-        L, err = dlt_calibrate(n_dims, world_arr, cam_arr)
-        print("  Camera '%s': %.3f" % (cam_id, err))
-        camera_calibration[cam_id] = L
-    print()
-
-    return camera_calibration, cam_ids
-
-
-def seq_as_array(poi_sequence):
-    N = 78
-    return np.array([f["keypoints"] if f else [np.NaN] * N for f in poi_sequence])
 
 
 def impute_filter():
@@ -388,10 +299,10 @@ usage = """
   python recon3d.py -c ./2013-01-13/Calibration ./2013-01-13
 """
 
-if __name__ == "__main__":
+def build_parser():
     import argparse
 
-    parser = argparse.ArgumentParser("poi_detector.py", usage=usage)
+    parser = argparse.ArgumentParser("reco3d.py", usage=usage)
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-Y", "--sync", dest="sync_file_dir",
                         help="Path to directory containing 'ffmpeg-sync.yml' (only for fps interpolation).")
@@ -408,6 +319,9 @@ if __name__ == "__main__":
     parser.add_argument("input_directory",
                         metavar="INPUT",
                         help="Input directory for input data files.")
+    parser.add_argument("-D", "--datasource",
+                        default="alphapose",
+                        help="Datasource: alphapose | simi")
     parser.add_argument("--visibility",
                         type=float,
                         default=0.5,
@@ -439,14 +353,39 @@ if __name__ == "__main__":
                         dest="com_exclude",
                         default="",
                         help="Comma-separate list of segments to exclude from CoM computation. Available values: hands, legs, forearms, shanks.")
+    parser.add_argument("--output-format",
+                        dest="output_format",
+                        default="npy",
+                        help="Output file format: npy (default) or csv.")
+    return parser
 
+def build_datasource(datasource_type, input_directory, subject, trial):
+    if datasource_type == 'alphapose':
+        return AlphaposeDataSource(input_directory, subject, trial)
+    elif datasource_type == 'simi':
+        return SIMIDataSource(input_directory, subject, trial)
+    else:
+        raise Exception("Invalid datasource: " + datasource_type)
+
+def build_output_writer(writer_type, output_path):
+    if writer_type == 'npy':
+        return NumpyOutputWriter(output_path)
+    elif writer_type == 'csv':
+        return CSVOuputWriter(output_path)
+    else:
+        raise Exception("Invalid output writer: " + writer_type)
+
+
+if __name__ == "__main__":
+    parser = build_parser()
     args = parser.parse_args()
 
     # parse & validate com_exclude
     com_exclude = parse_com_exclude_segments(args.com_exclude)
 
     # read directory structure
-    datasource = DataSource(args.input_directory, args.subject, args.trial)
+    print("Trial",args.trial)
+    datasource = build_datasource(args.datasource, args.input_directory, args.subject, args.trial)
 
     # build camera calibration path
     default_clib_path = os.path.join(args.input_directory, "Calibration")
@@ -461,7 +400,7 @@ if __name__ == "__main__":
 
     posedata = {}
 
-    if not datasource.alphapose_camera_sets:
+    if not datasource.camera_sets:
         sc.print_fail("No alphapose-results.json files found")
         sys.exit(1)
 
@@ -472,55 +411,27 @@ if __name__ == "__main__":
 
     outputfiles = []
 
-    for camset in datasource.alphapose_camera_sets:
+    for camset in datasource.camera_sets:
         cam_ids = camset.get_cam_ids()
 
         fps = get_target_fps(cam_ids, sync_file_dir)
 
         # load pose data
         print("Opening pose data files:")
-        for cam_id, pose_path in camset.paths_by_cam.items():
-            print(f"  Pose data: {Path(pose_path).parent.name}")
-            print(f"    - camera: {cam_id}")
-            print(f"    - path: '{pose_path}'")
-            sequence = load_alphapose_json(pose_path)
-
-            # pose tracking
-            harmonize_indices(sequence)
-
-            # find sequence for person-of-interest
-            pois, poi_warnings = detect_poi(sequence, return_warnings=True)
-
-            for warn_msg in poi_warnings:
-                print(f"    - WARN: {warn_msg}")
-
-            if len(pois) == 0:
-                print("    - FAILED detection: No POI found")
-                # remove camera from 3d reconstruction set
+        for cam_id in cam_ids:
+            try:
+                # read keypoint array
+                keypoint_arr = camset.get_keypoint_array(cam_id)
+            except DataSourceException:
                 del cam_ids[cam_ids.index(cam_id)]
                 continue
-            elif len(pois) > 1:
-                print("    - FAILED detection: Multiple POI candidates found", pois)
-                # remove camera from 3d reconstruction set
-                del cam_ids[cam_ids.index(cam_id)]
-                continue
-            else:
-                poi = pois[0]
 
-            # select only data for person of interest
-            poi_sequence = select_sequence_idx(sequence, poi)
-
-            # build keypoint array
-            keypoint_arr = seq_as_array(poi_sequence)
             keypoint_arr = drop_low_scores(keypoint_arr, args.visibility)
             keypoint_arr = filter_data_median(keypoint_arr, args.median)
 
-            # add to posedata
+            # add camera posedata
             posedata[cam_id] = keypoint_arr
-            n_frames, n_cols = keypoint_arr.shape
-            n_keypoints = n_cols // 3
-            print(
-                f"    - detected POI={poi}, frames={n_frames}, keypoints={n_keypoints}")
+
         print()
 
         if not cam_ids:
@@ -573,32 +484,26 @@ if __name__ == "__main__":
         else:
             print("Skipping Butterworth filter...")
 
-        # write to disk
-        output_dir = DataSource.get_output_dir(camset.subject_dir)
-        output_filename = DataSource.get_output_basename(camset.subject_id,
-                                                         camset.trial_id)
-        output_path = os.path.join(output_dir, output_filename)
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        if os.path.isfile(output_path):
-            print(f"File exists, overwriting: {output_path}...")
-        np.save(output_path, world_pos)
-
         if args.verbose:
             print()
             print("Statistics:")
             pprint.pprint(stats)
             print()
 
-        outputfiles.append(f"{output_path}.npy")
+        # write to disk
+        output_dir = datasource.get_output_dir(camset.subject_dir)
+        output_filename = datasource.get_output_basename(camset.subject_id,
+                                                         camset.trial_id)
+        output_path = os.path.join(output_dir, output_filename)
+        output_writer = build_output_writer(args.output_format, output_path)
+        output_writer.write(world_pos)
+        outputfiles.append(output_writer.get_path())
 
         if args.com:
             print("Computing CoM...", flush=True)
             com_trajectory = com.compute(world_pos, com_exclude)
-            com_output_path = os.path.join(
-                output_dir, f"{output_filename}-com")
-            np.save(com_output_path, com_trajectory)
-            outputfiles.append(f"{com_output_path}.npy")
+            output_writer.write_com(com_trajectory)
+            outputfiles.append(output_writer.get_com_path())
 
     for output_path in outputfiles:
         sc.print_ok(f"Coordinates written to: {output_path}")
