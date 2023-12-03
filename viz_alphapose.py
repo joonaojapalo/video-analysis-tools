@@ -9,7 +9,7 @@ from alphapose_json import load_alphapose_json
 from pose_tracker import harmonize_indices
 from poi_detector import detect_poi
 import progress
-import viz3d
+import view3d
 
 BLUE = (255, 0, 0)
 RED = (0, 0, 255)
@@ -31,8 +31,8 @@ def rg(ratio):
 
 
 def render_skeleton(image, pose):
-    for segment in viz3d.skeleton:
-        i0, i1 = [viz3d.KEYPOINTS[kp] for kp in segment]
+    for segment in view3d.skeleton:
+        i0, i1 = [view3d.KEYPOINTS[kp] for kp in segment]
         x0, y0, score0 = pose["keypoints"][3*i0:3*i0+3]
         x1, y1, score1 = pose["keypoints"][3*i1:3*i1+3]
         x0, y0 = int(x0), int(y0)
@@ -61,7 +61,7 @@ def render_bbox(image, pose, thickness=1):
                 1.1, WHITE, 2)
 
 
-def render_output(input_video, input_json, outfile, use_orig_idx=False):
+def render_output(input_video, input_json, outfile, use_orig_idx=False, only_poi=False, bbox=True):
     """Render alphapose results (skeleton & yolo bbox) on video.
 
     Arguments:
@@ -70,6 +70,8 @@ def render_output(input_video, input_json, outfile, use_orig_idx=False):
     outfile (str)       : output file path
     use_orig_idx (bool) : use oiginal alphapose pose indices instead of
                           harmonized (=dropped frame & index change tracking).
+    only_poi (bool)     : render only skeleton for detected person-of-interest (default: False)
+    bbox (bool)  : render bbox around detected skeletons (default: True)
     """
     # read alphapose json
     print("Reading", input_json)
@@ -107,11 +109,15 @@ def render_output(input_video, input_json, outfile, use_orig_idx=False):
 
         if num_frame < len(posedata):
             for pose in posedata[num_frame]["objs"]:
+                if only_poi and poi != pose["idx"]:
+                    continue
+
                 render_skeleton(image, pose)
 
-                # highlight poi with thick border
-                thickness = 3 if poi == pose["idx"] else 1
-                render_bbox(image, pose, thickness)
+                if bbox:
+                    # highlight poi with thick border
+                    thickness = 3 if poi == pose["idx"] else 1
+                    render_bbox(image, pose, thickness)
 
         # write output
         output.write(image)
@@ -123,11 +129,20 @@ def render_output(input_video, input_json, outfile, use_orig_idx=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("analyze-com")
+    parser = argparse.ArgumentParser("viz_alphapose")
     parser.add_argument("input_video",
                         help="Input video file, eg. S01_01_oe.mp4")
     parser.add_argument("input_json",
                         help="AlphaPose result file, eg. alphapose-results.json")
+    parser.add_argument("--poi-only", "-P",
+                        dest="poi_only",
+                        type=bool,
+                        default=False,
+                        help="Visualize person-of-interest only")
+    parser.add_argument("--bbox", "-B",
+                        type=bool,
+                        default=False,
+                        help="Render bbox around detected poses")
     args = parser.parse_args()
 
     video_path = Path(args.input_video)
@@ -142,4 +157,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     outfile_name = f"{video_path.stem}-alphapose{video_path.suffix}"
-    render_output(video_path, jsonpath, outfile_name)
+    render_output(video_path,
+                  jsonpath,
+                  outfile_name,
+                  only_poi=args.poi_only,
+                  bbox=args.bbox)

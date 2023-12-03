@@ -18,6 +18,7 @@ import progress
 import com
 from datasource import AlphaposeDataSource, SIMIDataSource, DataSourceException
 from outputwriter import CSVOuputWriter, NumpyOutputWriter
+from offset_table import apply_offset_table, read_offset_table
 
 DEFAULT_FPS = 50
 
@@ -299,6 +300,7 @@ usage = """
   python recon3d.py -c ./2013-01-13/Calibration ./2013-01-13
 """
 
+
 def build_parser():
     import argparse
 
@@ -357,15 +359,20 @@ def build_parser():
                         dest="output_format",
                         default="npy",
                         help="Output file format: npy (default) or csv.")
+    parser.add_argument("--offset-table",
+                        dest="offset_table_path",
+                        help="Path to landmark frame offset table CSV file.")
     return parser
 
-def build_datasource(datasource_type, input_directory, subject, trial):
+
+def build_datasource(datasource_type, input_directory, subject, trial, args={}):
     if datasource_type == 'alphapose':
         return AlphaposeDataSource(input_directory, subject, trial)
     elif datasource_type == 'simi':
-        return SIMIDataSource(input_directory, subject, trial)
+        return SIMIDataSource(input_directory, subject, trial, **args)
     else:
         raise Exception("Invalid datasource: " + datasource_type)
+
 
 def build_output_writer(writer_type, output_path):
     if writer_type == 'npy':
@@ -376,6 +383,15 @@ def build_output_writer(writer_type, output_path):
         raise Exception("Invalid output writer: " + writer_type)
 
 
+def build_com_model_name(datasource):
+    if datasource == 'simi':
+        return 'dempster-kihu'
+    elif datasource == 'alphapose':
+        return'dempster-alphapose'
+    else:
+        raise Exception("Invalid center-of-mass model: " + datasource)
+
+
 if __name__ == "__main__":
     parser = build_parser()
     args = parser.parse_args()
@@ -384,8 +400,9 @@ if __name__ == "__main__":
     com_exclude = parse_com_exclude_segments(args.com_exclude)
 
     # read directory structure
-    print("Trial",args.trial)
-    datasource = build_datasource(args.datasource, args.input_directory, args.subject, args.trial)
+    print("Trial", args.trial)
+    datasource = build_datasource(
+        args.datasource, args.input_directory, args.subject, args.trial)
 
     # build camera calibration path
     default_clib_path = os.path.join(args.input_directory, "Calibration")
@@ -401,7 +418,7 @@ if __name__ == "__main__":
     posedata = {}
 
     if not datasource.camera_sets:
-        sc.print_fail("No alphapose-results.json files found")
+        sc.print_fail("No input files found")
         sys.exit(1)
 
     sync_file_dir = args.sync_file_dir if args.sync_file_dir else args.input_directory
@@ -418,19 +435,33 @@ if __name__ == "__main__":
 
         # load pose data
         print("Opening pose data files:")
+        invalid_cams = []
         for cam_id in cam_ids:
             try:
                 # read keypoint array
                 keypoint_arr = camset.get_keypoint_array(cam_id)
-            except DataSourceException:
-                del cam_ids[cam_ids.index(cam_id)]
+            except DataSourceException as e:
+                print("WARN: DataSourceException -- ", e)
+                invalid_cams.append(cam_id)
                 continue
+            
+            if args.offset_table_path:
+                print("[frame-offset]: applying table %s" % (args.offset_table_path,))
+                keypoint_arr = apply_offset_table(keypoint_arr, args.offset_table_path)
 
             keypoint_arr = drop_low_scores(keypoint_arr, args.visibility)
-            keypoint_arr = filter_data_median(keypoint_arr, args.median)
+
+            if args.median > 0:
+                print("[pre-median] Filtering...", flush=True)
+                keypoint_arr = filter_data_median(keypoint_arr, args.median)
 
             # add camera posedata
             posedata[cam_id] = keypoint_arr
+
+        # remove invalid camera views
+        for invalid_cam_id in invalid_cams:
+            print("Dropping cam_id: %s" % (invalid_cam_id,))
+            del cam_ids[cam_ids.index(invalid_cam_id)]
 
         print()
 
@@ -442,6 +473,8 @@ if __name__ == "__main__":
         pad_posedata(posedata, sync_file_dir)
 
         # do fps interpolation
+        print("posedata keys", posedata.keys())
+        print("camids",cam_ids)
         posedata = interpolate_cams(posedata, cam_ids, sync_file_dir)
 
         if not check_frame_count(posedata, cam_ids):
@@ -460,14 +493,14 @@ if __name__ == "__main__":
             continue
 
         # post median filter
-        if args.median_post > 1:
-            print("Post median filter...", flush=True)
+        if args.median_post > 0:
+            print("[post-median] Filtering...", flush=True)
             filter_data_median(world_pos, args.median_post, dimensions=3)
 
         # post Butterworth
         if args.freq > 0:
             try:
-                print("Butterworth LP filter (cutoff: %.1f Hz)..." %
+                print("[butterworth-lowpass] applying filter (cutoff: %.1f Hz)..." %
                       args.freq,
                       flush=True
                       )
@@ -479,10 +512,10 @@ if __name__ == "__main__":
                 )
             except ValueError as err:
                 print("[butterworth-lowpass] ERROR:", err)
-                print("Skipping to next camera set...")
+                print("[butterworth-lowpass] skipping to next camera set...")
                 continue
         else:
-            print("Skipping Butterworth filter...")
+            print("[butterworth-lowpass] skipped.")
 
         if args.verbose:
             print()
@@ -501,7 +534,8 @@ if __name__ == "__main__":
 
         if args.com:
             print("Computing CoM...", flush=True)
-            com_trajectory = com.compute(world_pos, com_exclude)
+            com_model = build_com_model_name(args.datasource)
+            com_trajectory = com.compute(world_pos, com_exclude, com_model)
             output_writer.write_com(com_trajectory)
             outputfiles.append(output_writer.get_com_path())
 

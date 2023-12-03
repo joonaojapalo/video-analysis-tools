@@ -16,7 +16,7 @@ def animate(frame_counter, n_frames, frame_start, fps, frames_per_animframe, vie
     view.set_data(frame)
 
 
-def process_dir(input_dir, subject, trial, output_fps=120, trim_start=0):
+def process_dir(input_dir, subject, trial, com_model, output_fps=120, trim_start=0):
     datasource = AlphaposeDataSource(input_dir, subject, trial)
 
     if len(datasource.outputs) == 0:
@@ -35,12 +35,13 @@ def process_dir(input_dir, subject, trial, output_fps=120, trim_start=0):
         output_video = output.path.parent.joinpath(output_video_name)
         process_npy_file(output.path,
                          output_video,
+                         com_model,
                          output.com_path,
                          output_fps=output_fps,
                          frame_start=trim_start)
 
 
-def process_npy_file(input, output, input_com=None, frame=None,
+def process_npy_file(input, output, com_model, input_com=None, frame=None,
                      output_fps=60,
                      frame_start=0):
     # load pose data
@@ -53,7 +54,7 @@ def process_npy_file(input, output, input_com=None, frame=None,
         comarr = None
 
     # animate
-    process_array(posearr, comarr, output, frame, output_fps, frame_start)
+    process_array(posearr, comarr, output, com_model, frame, output_fps, frame_start)
 
 
 query_keypoints = """
@@ -67,7 +68,8 @@ ORDER BY
 """
 
 
-def process_sqlite(input, output, subject, trial, frame=None,
+def process_sqlite(input, output, subject, trial, com_model,
+                   frame=None,
                    output_fps=60,
                    frame_start=0):
     import sqlite3
@@ -83,10 +85,10 @@ def process_sqlite(input, output, subject, trial, frame=None,
     comarr = None
 
     # animate
-    process_array(posearr, comarr, output, frame, output_fps, frame_start)
+    process_array(posearr, comarr, output, com_model, frame, output_fps, frame_start)
 
 
-def process_array(posearr, comarr, output,
+def process_array(posearr, comarr, output, com_model,
                   frame=None,
                   output_fps=60,
                   frame_start=0):
@@ -101,7 +103,7 @@ def process_array(posearr, comarr, output,
         frames_per_animframe = 240 / output_fps
 
         # compute segment coms
-        segment_coms = com.compute_segment_com(posearr)
+        segment_coms = com_model.compute_segment_com(posearr)
 
         view = View(posearr, comarr, segment_coms)
         view.render(0)
@@ -146,6 +148,16 @@ def detect_input_type(input_path):
         return "directory"
 
 
+def build_com_model(com_model_name):
+    if com_model_name == 'dempster-alphapose':
+        return com.DempsterAlphapose()
+    elif com_model_name == 'dempster-kihu':
+        return com.DempsterKIHU()
+    else:
+        raise Exception("Invalid center-of-mass model: " + com_model_name)
+
+
+
 usage = """
 Visualize single input file and save output video:
 
@@ -162,6 +174,10 @@ if __name__ == "__main__":
                         help="Input file, eg. worldpos.npy")
     parser.add_argument("--com",
                         help="Input CoM file, eg. worldpos-com.npy")
+    parser.add_argument("-M", "--com-model",
+                        dest="com_model",
+                        default="dempster-alphapose",
+                        help="CoM model name: dempster-kihu | dempster-alphapose. Default: dempster-alphapose")
     parser.add_argument("-o", "--output",
                         default=None,
                         help="File name for output video.")
@@ -195,15 +211,20 @@ if __name__ == "__main__":
     # input
     input_type = detect_input_type(input)
 
+    # com model
+    com_model = build_com_model(args.com_model)
+
     if input_type == "numpy":
         print(f"Creating 3d visualization for: {args.input}")
-        process_npy_file(args.input, args.output, args.com,
+        process_npy_file(args.input, args.output,
+                         com_model, args.com,
                          frame=args.frame,
                          start_frame=args.trim_start)
     elif input_type == "directory":
         process_dir(args.input,
                     subject=args.subject,
                     trial=args.trial,
+                    com_model=com_model,
                     output_fps=args.output_fps,
                     trim_start=args.trim_start)
     elif input_type == "sqlite":
