@@ -9,6 +9,8 @@ cam_file_re = re.compile("calibration_camera-([A-Za-z]+).txt")
 
 
 def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
+    """ssv = space-separated-values
+    """
     header = [h.lower() for h in next(fd).split()]
     marker_idx = header.index(marker_column.lower())
     col_idxs = [header.index(c.lower()) for c in columns]
@@ -83,3 +85,11 @@ def load_calibration(path):
     print()
 
     return camera_calibration, cam_ids
+
+def is_opposite(cam):
+    """
+    Arguments:
+
+    cam         : camera calibration matrix (3x4)
+    """
+    pass

@@ -7,7 +7,7 @@ import itertools
 
 import numpy as np
 import scipy.signal
-from dltx import dlt_reconstruct, dlt_calibrate
+from dltx import dlt_reconstruct
 from calibration import load_calibration
 
 import cmdline

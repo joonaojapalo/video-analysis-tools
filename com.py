@@ -185,6 +185,9 @@ def compute(world_pos, exclude=[], model_name="dempster-alphapose"):
 
     missing_segments = []
     for com_segment in com_segments:
+        p = com_segment.pos
+        print("pos", com_segment.name, p[np.isnan(p)==False])
+
         segnan = np.isnan(com_segment.pos)
         if segnan.any():
             nanframes = np.where(segnan)[0]

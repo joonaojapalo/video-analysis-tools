@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 
-from datasource import AlphaposeDataSource
+from datasource import AlphaposeDataSource, SIMIDataSource
 import progress
 import com
 from view3d import View
@@ -15,9 +15,16 @@ def animate(frame_counter, n_frames, frame_start, fps, frames_per_animframe, vie
     frame = frame_start + frame_counter * 240 // fps
     view.set_data(frame)
 
+def build_data_source(type):
+    if (type == "alphapose"):
+        return AlphaposeDataSource
+    elif type == "simi":
+        return SIMIDataSource
 
-def process_dir(input_dir, subject, trial, com_model, output_fps=120, trim_start=0):
-    datasource = AlphaposeDataSource(input_dir, subject, trial)
+
+def process_dir(input_dir, subject, trial, com_model, output_fps=120, trim_start=0, datasource_name="alhpapose"):
+    DataSource = build_data_source(datasource_name)
+    datasource = DataSource(input_dir, subject, trial)
 
     if len(datasource.outputs) == 0:
         print("No files to process.")
@@ -104,6 +111,7 @@ def process_array(posearr, comarr, output, com_model,
 
         # compute segment coms
         segment_coms = com_model.compute_segment_com(posearr)
+        seg = [s.pos for s in segment_coms if s.name == 'head'][0]
 
         view = View(posearr, comarr, segment_coms)
         view.render(0)
@@ -204,6 +212,9 @@ if __name__ == "__main__":
                         dest="trim_end",
                         default=None,
                         help="How many frames to trim from end. Default: 0")
+    parser.add_argument("--datasource", "-D",
+                        default="alphapose",
+                        help="Input data source name: alphapose, simi. Default: alphapose")
     args = parser.parse_args()
 
     input = Path(args.input)
@@ -226,6 +237,7 @@ if __name__ == "__main__":
                     trial=args.trial,
                     com_model=com_model,
                     output_fps=args.output_fps,
-                    trim_start=args.trim_start)
+                    trim_start=args.trim_start,
+                    datasource_name=args.datasource)
     elif input_type == "sqlite":
         raise NotImplemented("SQLite")

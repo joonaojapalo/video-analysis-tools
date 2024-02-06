@@ -19,7 +19,7 @@ from keypoints import KEYPOINTS
 ap_dir_re = re.compile("([A-Za-z0-9v]+)_([A-Za-z0-9]+)_([A-Za-z0-9]+)")
 simi_file_re = re.compile("([A-Za-z0-9v]+)_([A-Za-z0-9]+)_([A-Za-z0-9]+)(-[a-zV-]*)?.p")
 cam_file_re = re.compile("calibration_camera-([a-z]+).txt")
-output_file_re = re.compile("([A-Za-z0-9v]+)_([A-Za-z0-9]+).npy")
+output_file_re = re.compile("([A-Za-z0-9v]+)_([A-Za-z0-9]+)-(ap|simi).npy")
 
 class DataSourceException (Exception):
     pass
@@ -28,6 +28,43 @@ class DataSourceException (Exception):
 def seq_as_array(poi_sequence):
     N = 78
     return np.array([f["keypoints"] if f else [np.NaN] * N for f in poi_sequence])
+
+
+def parse_output_paths(subject_dirs, trial, method="ap"):
+    outputs = []
+
+    for subject_id, subject_dir in subject_dirs.items():
+        output_glob = os.path.join(subject_dir,
+                                    "Output",
+                                    "%s_*" % (subject_id)
+                                    )
+        for output_path in glob.glob(output_glob):
+            p = Path(output_path)
+            match = output_file_re.match(p.name)
+
+            if not match:
+                continue
+
+            trial_id = match.groups()[1]
+            method_name = match.groups()[2]
+
+            if trial and trial_id != trial:
+                continue
+
+            if method and method_name != method:
+                continue
+
+            com_path = p.parent.joinpath(f"{p.stem}-com.npy")
+            com = None
+
+            if com_path.is_file():
+                com = com_path
+
+                outputs.append(Output(subject_id,
+                                      trial_id,
+                                      output_path,
+                                      com))
+    return outputs
 
 
 class CameraSet:
@@ -311,7 +348,8 @@ class SIMIDataSource (DataSource):
         super().__init__(root_path, subject, trial)
 
     def _parse_output_paths(self, subject_dirs, trial):
-        pass
+        outputs = parse_output_paths(subject_dirs, trial, method="simi")
+        self.outputs.extend(outputs)
 
     @staticmethod
     def get_output_basename(subject_id, trial_id):
@@ -368,31 +406,8 @@ class AlphaposeDataSource (DataSource):
         return f"{subject_id}_{trial_id}-ap"
 
     def _parse_output_paths(self, subject_dirs, trial):
-        for subject_id, subject_dir in subject_dirs.items():
-            output_glob = os.path.join(subject_dir,
-                                       "Output",
-                                       "%s_*" % (subject_id)
-                                       )
-            for output_path in glob.glob(output_glob):
-                p = Path(output_path)
-                match = output_file_re.match(p.name)
-
-                if not match:
-                    continue
-
-                trial_id = match.groups()[1]
-
-                if trial and trial_id != trial:
-                    continue
-
-                com_path = p.parent.joinpath(f"{p.stem}-com.npy")
-                com = None
-                if com_path.is_file():
-                    com = com_path
-                self.outputs.append(Output(subject_id,
-                                           trial_id,
-                                           output_path,
-                                           com))
+        outputs = parse_output_paths(subject_dirs, trial, method="ap")
+        self.outputs.extend(outputs)
 
     def _parse_pose_paths(self, subject_dirs, trial):
         initdata_pose = {}
