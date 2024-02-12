@@ -79,6 +79,19 @@ def has_skeleton_data(viewdata, frame: int) -> bool:
     return has_skeleton and has_head
 
 
+def format_point_3d(point):
+    return (
+        [point[0], point[0]],
+        [point[1], point[1]],
+        [point[2], point[2]]
+    )
+
+
+def plot_point(ax, point, **kwargs):
+    lines, = ax.plot3D(*format_point_3d(point), **kwargs)
+    return lines
+
+
 class ViewData:
     def __init__(self, posearr, comarr, segments: List[SegmentCenterOfMass]) -> None:
         self.pose = posearr
@@ -264,8 +277,8 @@ class ComView:
         )
 
         self.artists["trace"].set_data_3d(trace_x, trace_y, trace_z)
-        self.artists["point"][0].set_data_3d(point)
-        self.artists["point"][1].set_data_3d(point)
+        self.artists["point"][0].set_data_3d(format_point_3d(point))
+        self.artists["point"][1].set_data_3d(format_point_3d(point))
 
 
 class SegmentComView:
@@ -306,8 +319,9 @@ class SegmentComView:
             return
 
         for k, segment_com in enumerate(viewdata.segments):
-            self.artists["outer"][k].set_data_3d(segment_com.pos[frame])
-            self.artists["inner"][k].set_data_3d(segment_com.pos[frame])
+            p = segment_com.pos[frame]
+            self.artists["outer"][k].set_data_3d([p[0],p[0]],[p[1],p[1]],[p[2],p[2]])
+            self.artists["inner"][k].set_data_3d([p[0],p[0]],[p[1],p[1]],[p[2],p[2]])
 
 
 class View:
@@ -403,11 +417,3 @@ class View:
             self.segment_coms[i].set_data(self.data, frame)
             axes.set_xlim([cx - 1, cx + 1])
             axes.set_aspect('equal')
-
-
-def plot_point(ax, point, **kwargs):
-    lines, = ax.plot3D([point[0], point[0]],
-                       [point[1], point[1]],
-                       [point[2], point[2]],
-                       **kwargs)
-    return lines

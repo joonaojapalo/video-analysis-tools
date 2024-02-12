@@ -342,7 +342,6 @@ class DataSource:
 
 class SIMIDataSource (DataSource):
     def __init__(self, root_path, subject=None, trial=None, params={"frame_x": 1920, "frame_y": 1080}):
-        print("SIMI DS")
         self.frame_width = params["frame_x"]
         self.frame_height = params["frame_y"]
         super().__init__(root_path, subject, trial)
@@ -382,7 +381,7 @@ class SIMIDataSource (DataSource):
                     continue
                 initdata_pose[subject_id][trial_id]["cams"][cam_id] = pose_fn
 
-        # build AlphaposeTrials
+        # build
         for subject_id, trials in initdata_pose.items():
             for trial_id, data in trials.items():
                 camset = SIMICameraSet(

@@ -22,7 +22,7 @@ def build_data_source(type):
         return SIMIDataSource
 
 
-def process_dir(input_dir, subject, trial, com_model, output_fps=120, trim_start=0, datasource_name="alhpapose"):
+def process_dir(input_dir, subject, trial, com_model, output_fps=120, trim_start=0, datasource_name="alphapose"):
     DataSource = build_data_source(datasource_name)
     datasource = DataSource(input_dir, subject, trial)
 
@@ -101,6 +101,7 @@ def process_array(posearr, comarr, output, com_model,
                   frame_start=0):
     if frame:
         frame = int(frame)
+        segment_coms = com_model.compute_segment_com(posearr)
         view = View(posearr, comarr, segment_coms)
         view.render(frame)
         plt.show()
@@ -111,7 +112,6 @@ def process_array(posearr, comarr, output, com_model,
 
         # compute segment coms
         segment_coms = com_model.compute_segment_com(posearr)
-        seg = [s.pos for s in segment_coms if s.name == 'head'][0]
 
         view = View(posearr, comarr, segment_coms)
         view.render(0)
@@ -169,7 +169,7 @@ def build_com_model(com_model_name):
 usage = """
 Visualize single input file and save output video:
 
-  viz3d .\S1_01-pos.npy -o S1_01-skeleton.mp4
+  viz3d .\\S1_01-pos.npy -o S1_01-skeleton.mp4
 
     OR
 
