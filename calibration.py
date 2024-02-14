@@ -1,12 +1,17 @@
 import os
 import glob
 import re
+import itertools
+from numpy import sqrt
 
-from dltx import dlt_calibrate
+from dltx import dlt_calibrate, dlt_reconstruct
 
 # regular expressions
 cam_file_re = re.compile("calibration_camera-([A-Za-z]+).txt")
 
+# threshold (in meters) to detect camera pairs producing unstable reconstructions
+# compared to reconstruction from all available cameras
+THREHOLD_UNSTABILITY = 0.01
 
 def read_calibration_ssv(fd, marker_column="Marker", columns=["X", "Y"]):
     """ssv = space-separated-values
@@ -56,23 +61,68 @@ def read_calibration_files(path):
     return world, cams
 
 
-def load_calibration(path):
+def _detect_unstable_cam_pairs(n_dims, cam_ids, markers, camera_calibration, cam_xy_by_id):
+    # list of unstable camera pairs. this data can be used to assess quality of
+    # 2-camera reconstructions
+    print("[calibration] detecting unstable camera pairs...")
+
+    # marker ground-truth world positions
+    pos_gt = {}
+
+    for marker_idx in markers:
+        Ls = [camera_calibration[cam_id] for cam_id in cam_ids]
+        point = [cam_xy_by_id[cam_id][marker_idx] for cam_id in cam_ids]
+        pos = dlt_reconstruct(n_dims, len(Ls), Ls, point)
+        pos_gt[marker_idx] = pos
+
+    unstable_cam_pairs = []
+    all_cam_pairs = itertools.combinations(cam_ids, 2)
+
+    for cam_id0, cam_id1 in all_cam_pairs:
+        Ls = [
+            camera_calibration[cam_id0],
+            camera_calibration[cam_id1]
+        ]
+
+        for marker_idx in markers:
+            point = [
+                cam_xy_by_id[cam_id0][marker_idx],
+                cam_xy_by_id[cam_id1][marker_idx]
+            ]
+
+            # reconstruct point
+            pos = dlt_reconstruct(n_dims, 2, Ls, point)
+
+            # compute distance to ground-truth position
+            v_delta = pos_gt[marker_idx] - pos
+            delta = sqrt(v_delta.dot(v_delta))
+
+            if delta > THREHOLD_UNSTABILITY:
+                print("[calibration] unstable cam pair: %s..%s (distance from calibration marker ground truth: %.1fmm)" % (cam_id0, cam_id1, delta * 1000))
+                unstable_cam_pairs.append(set([cam_id0, cam_id1]))
+                break
+
+    return unstable_cam_pairs
+
+
+def load_calibration(path, return_unstable_cams=False):
     calib_world, calib_cams = read_calibration_files(path)
 
     if len(calib_cams) == 0:
         raise Exception("No camera calibration files read: %s" % path)
 
     markers = calib_world.keys()
-#    pprint.pprint(world_arr)
 
     cam_ids = []
+    cam_xy_by_id = {}
     camera_calibration = {}
 
     print("Camera calibration error values:")
-    for cam_id, cam_values in calib_cams.items():
-        use_markers = [x for x in markers if x in cam_values]
-        cam_arr = [cam_values[x] for x in use_markers]
+    for cam_id, cam_xy in calib_cams.items():
+        use_markers = [x for x in markers if x in cam_xy]
+        cam_arr = [cam_xy[x] for x in use_markers]
         cam_ids.append(cam_id)
+        cam_xy_by_id[cam_id] = cam_xy
 
         world_arr = [calib_world[x] for x in use_markers]
         n_dims = len(world_arr[0])
@@ -82,14 +132,11 @@ def load_calibration(path):
         L, err = dlt_calibrate(n_dims, world_arr, cam_arr)
         print("  Camera '%s': %.3f" % (cam_id, err))
         camera_calibration[cam_id] = L
+
+    unstable_cam_pairs = _detect_unstable_cam_pairs(n_dims, cam_ids, markers, camera_calibration, cam_xy_by_id)
     print()
 
-    return camera_calibration, cam_ids
-
-def is_opposite(cam):
-    """
-    Arguments:
-
-    cam         : camera calibration matrix (3x4)
-    """
-    pass
+    if return_unstable_cams:
+        return camera_calibration, cam_ids, unstable_cam_pairs
+    else:
+        return camera_calibration, cam_ids

@@ -77,14 +77,18 @@ def is_valid(point):
     return not np.isnan(point).any()
 
 
-def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_combinations=True):
+def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2,
+                   use_combinations=True,
+                   unstable_cam_pairs=None):
     """Map set of 2D posedata coordinates to 3D world coordinates.
 
-    Parameters:
-    posedata (dict)
-    cam_ids (list)
-    camera_calibration (dict)
-    n_cams_min (int): Minimum number of cameras that must see point
+    Arguments:
+
+        posedata (dict)
+        cam_ids (list)
+        camera_calibration (dict)
+        n_cams_min (int)            : Minimum number of cameras that must see point
+        unstable_cam_pairs (list)   : List of sets of cam_ids which produce unstable reconstructions
     """
     assert n_cams_min > 1
 
@@ -122,6 +126,10 @@ def reconstruct_3d(posedata, cam_ids, camera_calibration, n_cams_min=2, use_comb
             stats[f"keypoint_{n_cams}_cams"] += 1
 
             if n_cams < n_cams_min:
+                continue
+
+            if n_cams == 2 and set(point_cam_ids) in unstable_cam_pairs:
+                stats[f"num_frames_droppoed_as_unstable"] += 1
                 continue
 
             stats[f"enough_cam_frames"] += 1
@@ -401,8 +409,10 @@ if __name__ == "__main__":
 
     # read directory structure
     print("Trial", args.trial)
-    datasource = build_datasource(
-        args.datasource, args.input_directory, args.subject, args.trial)
+    datasource = build_datasource(args.datasource,
+                                  args.input_directory,
+                                  args.subject,
+                                  args.trial)
 
     # build camera calibration path
     default_clib_path = os.path.join(args.input_directory, "Calibration")
@@ -410,7 +420,8 @@ if __name__ == "__main__":
     cam_path = os.path.realpath(calib_path)
 
     print(f"Loading calibration from: {cam_path}")
-    camera_calibration, cam_ids = load_calibration(cam_path)
+    camera_calibration, cam_ids, unstable_cam_pairs = load_calibration(cam_path,
+                                                                       return_unstable_cams=True)
 
     if args.verbose:
         print("camera_calibration", camera_calibration)
@@ -482,10 +493,12 @@ if __name__ == "__main__":
             continue
 
         # make 3D recostructions
-        world_pos = reconstruct_3d(
-            posedata, cam_ids, camera_calibration,
-            n_cams_min=args.n_cams_min,
-            use_combinations=args.cam_combinations)
+        world_pos = reconstruct_3d(posedata,
+                                   cam_ids,
+                                   camera_calibration,
+                                   n_cams_min=args.n_cams_min,
+                                   use_combinations=args.cam_combinations,
+                                   unstable_cam_pairs=unstable_cam_pairs)
 
         frames_with_data = stats["enough_cam_frames"]
         if frames_with_data == 0:
